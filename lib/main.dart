@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'register_page.dart';
 void main() {
   runApp(const MyApp());
 }
@@ -39,13 +39,16 @@ class WelcomePage extends StatelessWidget {
               const SizedBox(height: 40),
               ElevatedButton(
                 onPressed: () {
-                  // TODO: 前往註冊頁面
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const RegisterPage()),
+                  );
                 },
+                child: const Text('使用學校帳號註冊'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   backgroundColor: Colors.pink,
                 ),
-                child: const Text('註冊'),
               ),
               const SizedBox(height: 20),
               OutlinedButton(
