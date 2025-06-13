@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'register_page.dart';
-void main() {
-  runApp(const MyApp());
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
+void main() async { // 記得awit要配上async
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(const MyApp()); //MyApp = 你的APP名稱
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -44,11 +50,11 @@ class WelcomePage extends StatelessWidget {
                     MaterialPageRoute(builder: (context) => const RegisterPage()),
                   );
                 },
-                child: const Text('使用學校帳號註冊'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                   backgroundColor: Colors.pink,
                 ),
+                child: const Text('使用學校帳號註冊'),
               ),
               const SizedBox(height: 20),
               OutlinedButton(
