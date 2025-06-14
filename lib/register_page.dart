@@ -7,45 +7,53 @@ class RegisterPage extends StatelessWidget {
   const RegisterPage({super.key});
 
   Future<void> _signInWithGoogle(BuildContext context) async {
-  try {
-    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) return;
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
 
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // 強制登出，讓每次都重新選帳號
+      await googleSignIn.signOut();
 
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+      // 使用 Google Sign-In 選帳號
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) return; // 使用者取消登入
 
-    // 使用 Firebase 認證登入
-    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-    final email = userCredential.user?.email ?? '';
+      final String email = googleUser.email;
 
-    // 驗證 email 網域
-    if (email.endsWith('@nycu.edu.tw') || email.endsWith('@nthu.edu.tw')) {
+      // 先檢查 email 網域
+      if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw')) {
+        await googleSignIn.signOut();
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('只允許使用 nycu.edu.tw 或 nthu.edu.tw 學校信箱註冊')),
+          );
+        }
+        return;
+      }
+
+      // 通過驗證才繼續取得 token 並登入 Firebase
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // 登入成功後導回主頁
       if (context.mounted) {
         Navigator.popUntil(context, (route) => route.isFirst);
       }
-    } else {
-      // 如果不是學校信箱，登出並顯示錯誤
-      await FirebaseAuth.instance.signOut();
-      await GoogleSignIn().signOut();
 
+    } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('只允許使用 nycu.edu.tw 或 nthu.edu.tw 學校信箱註冊')),
+          SnackBar(content: Text('登入失敗：$e')),
         );
       }
     }
-  } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('登入失敗：$e')),
-      );
-    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
