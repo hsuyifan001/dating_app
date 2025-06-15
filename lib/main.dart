@@ -43,89 +43,27 @@ class WelcomePage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Image.asset(
+                'assets/icon.png', // 確保這個路徑正確
+                width: 200,
+                height: 200,
+              ),
               const Text(
-                '歡迎使用 LoveMatch',
+                '歡迎使用 洋青椒',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 40),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const RegisterPage()),
-                  );
-                },
+              ElevatedButton.icon(
+                onPressed: () => _signInWithGoogle(context),
+                icon: const Icon(Icons.login),
+                label: const Text('使用 Google 帳號登入'),
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.pink,
+                  side: const BorderSide(color: Colors.black12),
                 ),
-                child: const Text('使用學校帳號註冊'),
               ),
-              const SizedBox(height: 20),
-              OutlinedButton(
-                onPressed: () async {
-                  try {
-                    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-                    if (googleUser == null) return;
-
-                    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-                    final credential = GoogleAuthProvider.credential(
-                      accessToken: googleAuth.accessToken,
-                      idToken: googleAuth.idToken,
-                    );
-
-                    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-                    final user = userCredential.user;
-                    final email = user?.email ?? '';
-
-                    if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw')) {
-                      await FirebaseAuth.instance.signOut();
-                      await GoogleSignIn().signOut();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('僅允許 nycu.edu.tw 或 nthu.edu.tw 學校信箱登入')),
-                        );
-                      }
-                      return;
-                    }
-
-                    // 檢查是否已經有個人資料
-                    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
-
-                    if (!userDoc.exists) {
-                      // 導向個人資料編輯頁
-                      if (context.mounted) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
-                        );
-                      }
-                    } else {
-                      // 已建立個人資料，進入主畫面
-                      if (context.mounted) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const HomePage()),
-                        );
-                      }
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('登入失敗：$e')),
-                      );
-                    }
-                  }
-                },
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  side: const BorderSide(color: Colors.pink),
-                  foregroundColor: Colors.pink,
-                ),
-                child: const Text('登入'),
-              ),
-
             ],
           ),
         ),
@@ -134,6 +72,74 @@ class WelcomePage extends StatelessWidget {
   }
 }
 
+Future<void> _signInWithGoogle(BuildContext context) async {
+  try {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
+
+    // 強制登出，讓使用者每次都能重新選帳號
+    await googleSignIn.signOut();
+
+    // 選擇帳號登入
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+    if (googleUser == null) return; // 使用者取消登入
+
+    final String email = googleUser.email;
+
+    // 登入前先檢查信箱格式
+    if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw')) {
+      await googleSignIn.signOut();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('僅允許 nycu.edu.tw 或 nthu.edu.tw 學校信箱登入')),
+        );
+      }
+      return;
+    }
+
+    // 通過信箱驗證後繼續取得 token 並登入 Firebase
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+    final user = userCredential.user;
+
+    if (user == null) {
+      throw Exception('Firebase 使用者為空');
+    }
+
+    // 檢查是否已有個人資料
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    if (context.mounted) {
+      if (!userDoc.exists) {
+        // 第一次登入，導向個人資料建立頁面
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
+        );
+      } else {
+        // 已建立個人資料，進入主頁
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      }
+    }
+
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('登入失敗：$e')),
+      );
+    }
+  }
+}
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
