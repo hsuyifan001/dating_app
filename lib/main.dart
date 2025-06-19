@@ -91,7 +91,7 @@ class WelcomePage extends StatelessWidget {
                   const SizedBox(height: 40),
                   ElevatedButton.icon(
                     onPressed: () => _signInWithGoogle(context),
-                    icon: const Icon(Icons.login),
+                    //icon: const Icon(Icons.login),
                     label: const Text('使用 Google 帳號登入'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFFFEECEC),
@@ -223,7 +223,7 @@ class _AuthGateState extends State<AuthGate> {
     } else {
       // 無個人資料 → 導向編輯頁
       setState(() {
-        _startPage = const SchoolSelectPage();
+        _startPage = const WelcomePage();
         _isLoading = false;
       });
     }

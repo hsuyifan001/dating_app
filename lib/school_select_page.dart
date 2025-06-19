@@ -78,21 +78,49 @@ class SchoolSelectPage extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () => _selectSchool(context, 'nycu'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      side: const BorderSide(
+                        color: Color(0xFF89C9C2),
+                        width: 3,
+                      ),
+                      backgroundColor: Color(0xFFFEECEC),
+                      foregroundColor: Color(0xFF5A4A3C),
                       minimumSize: const Size(double.infinity, 60),
                     ),
-                    child: const Text('國立陽明交通大學', style: TextStyle(fontSize: 18)),
+                    child: const Text('國立陽明交通大學',
+                      style: TextStyle(
+                            fontFamily: 'Kiwi Maru',
+                            fontWeight: FontWeight.w400,
+                            fontSize: 18,
+                            height: 1.0,
+                            letterSpacing: 0.0,
+                            color: Color(0xFF5A4A3C),
+                            
+                          ),
+                      ),
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () => _selectSchool(context, 'nthu'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      side: const BorderSide(
+                        color: Color(0xFF89C9C2),
+                        width: 3,
+                      ),
+                      backgroundColor: Color(0xFFFEECEC),
+                      foregroundColor: Color(0xFF5A4A3C),
                       minimumSize: const Size(double.infinity, 60),
                     ),
-                    child: const Text('國立清華大學', style: TextStyle(fontSize: 18)),
+                    child: const Text('國立清華大學',
+                      style: TextStyle(
+                            fontFamily: 'Kiwi Maru',
+                            fontWeight: FontWeight.w400,
+                            fontSize: 18,
+                            height: 1.0,
+                            letterSpacing: 0.0,
+                            color: Color(0xFF5A4A3C),
+                            
+                          ),
+                      ),
                   ),
                 ],
               ),
