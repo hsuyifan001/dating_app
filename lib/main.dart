@@ -57,17 +57,36 @@ class WelcomePage extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min, // 垂直置中
                 children: [
-                  const Text(
-                    '歡迎使用 洋青椒',
-                    style: TextStyle(
-                      fontSize: 28,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      shadows: [
-                        Shadow(color: Colors.black54, blurRadius: 4),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
+                  Stack(
+                    children: [
+                      // 外框字（白色描邊）
+                      Text(
+                        '歡迎使用 洋青椒',
+                        style: TextStyle(
+                          fontSize: 28,
+                          foreground: Paint()
+                            ..style = PaintingStyle.stroke
+                            ..strokeWidth = 4
+                            ..color = Colors.white,
+                        ),
+                      ),
+
+                      // 內部填色字（黑色 + 陰影）
+                      Text(
+                        '歡迎使用 洋青椒',
+                        style: TextStyle(
+                          fontSize: 28,
+                          color: Color(0xFF5A4A3C),
+                          shadows: [
+                            Shadow(
+                              offset: Offset(2, 2),
+                              blurRadius: 4,
+                              color: Colors.black38,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 40),
                   ElevatedButton.icon(
@@ -75,10 +94,10 @@ class WelcomePage extends StatelessWidget {
                     icon: const Icon(Icons.login),
                     label: const Text('使用 Google 帳號登入'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
+                      backgroundColor: Color(0xFFFEECEC),
                       foregroundColor: Colors.black,
                       minimumSize: const Size(double.infinity, 50),
-                      side: const BorderSide(color: Colors.black12),
+                      side: const BorderSide(color: Color(0xFF89C9C2), width: 2),
                     ),
                   ),
                 ],
