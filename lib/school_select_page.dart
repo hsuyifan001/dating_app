@@ -86,7 +86,6 @@ class SchoolSelectPage extends StatelessWidget {
                       foregroundColor: Color(0xFF5A4A3C),
                       minimumSize: const Size(double.infinity, 60),
                     ),
-<<<<<<< HEAD
                     child: const Text('國立陽明交通大學',
                       style: TextStyle(
                             fontFamily: 'Kiwi Maru',
@@ -98,9 +97,6 @@ class SchoolSelectPage extends StatelessWidget {
                             
                           ),
                       ),
-=======
-                    child: const Text('國立陽明交通大學', style: TextStyle(fontSize: 18)),
->>>>>>> 912882a30361e98a077aa89ca8623afee5e123fd
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
@@ -114,7 +110,6 @@ class SchoolSelectPage extends StatelessWidget {
                       foregroundColor: Color(0xFF5A4A3C),
                       minimumSize: const Size(double.infinity, 60),
                     ),
-<<<<<<< HEAD
                     child: const Text('國立清華大學',
                       style: TextStyle(
                             fontFamily: 'Kiwi Maru',
@@ -126,9 +121,6 @@ class SchoolSelectPage extends StatelessWidget {
                             
                           ),
                       ),
-=======
-                    child: const Text('國立清華大學', style: TextStyle(fontSize: 18)),
->>>>>>> 912882a30361e98a077aa89ca8623afee5e123fd
                   ),
                 ],
               ),
