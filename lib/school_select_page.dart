@@ -82,7 +82,7 @@ class SchoolSelectPage extends StatelessWidget {
                       foregroundColor: Colors.black,
                       minimumSize: const Size(double.infinity, 60),
                     ),
-                    child: const Text('國立陽明交通大學'),
+                    child: const Text('國立陽明交通大學', style: TextStyle(fontSize: 18)),
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(
@@ -92,7 +92,7 @@ class SchoolSelectPage extends StatelessWidget {
                       foregroundColor: Colors.black,
                       minimumSize: const Size(double.infinity, 60),
                     ),
-                    child: const Text('國立清華大學'),
+                    child: const Text('國立清華大學', style: TextStyle(fontSize: 18)),
                   ),
                 ],
               ),
