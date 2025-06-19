@@ -63,6 +63,8 @@ flutter:
 
   assets:
     - assets/icon.png
+    - assets/welcome.png
+    - assets/school_page_background.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

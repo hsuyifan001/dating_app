@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'register_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_setup_page.dart'; // 等下會建立
-import 'home_page.dart'; // 你的主交友頁面
+import 'home_page.dart';
+import 'school_select_page.dart'; // 你的主交友頁面
 
 void main() async { // 記得awit要配上async
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,41 +36,62 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset(
-                'assets/icon.png', // 確保這個路徑正確
-                width: 200,
-                height: 200,
-              ),
-              const Text(
-                '歡迎使用 洋青椒',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 40),
-              ElevatedButton.icon(
-                onPressed: () => _signInWithGoogle(context),
-                icon: const Icon(Icons.login),
-                label: const Text('使用 Google 帳號登入'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  minimumSize: const Size(double.infinity, 50),
-                  side: const BorderSide(color: Colors.black12),
-                ),
-              ),
-            ],
+      body: Stack(
+        fit: StackFit.expand, // 讓背景圖自動鋪滿
+        children: [
+          // ✅ 背景圖片
+          Image.asset(
+            'assets/welcome.png',
+            fit: BoxFit.cover,
           ),
-        ),
+
+          // ✅ 半透明遮罩（可選）
+          Container(
+            color: const Color.fromARGB(255, 51, 51, 51).withOpacity(0.05), // 淡黑遮罩提升文字對比度
+          ),
+
+          // ✅ 前景內容
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Column(
+                mainAxisSize: MainAxisSize.min, // 垂直置中
+                children: [
+                  const Text(
+                    '歡迎使用 洋青椒',
+                    style: TextStyle(
+                      fontSize: 28,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      shadows: [
+                        Shadow(color: Colors.black54, blurRadius: 4),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 40),
+                  ElevatedButton.icon(
+                    onPressed: () => _signInWithGoogle(context),
+                    icon: const Icon(Icons.login),
+                    label: const Text('使用 Google 帳號登入'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      minimumSize: const Size(double.infinity, 50),
+                      side: const BorderSide(color: Colors.black12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
 }
+
 
 Future<void> _signInWithGoogle(BuildContext context) async {
   try {
@@ -118,12 +139,13 @@ Future<void> _signInWithGoogle(BuildContext context) async {
 
     if (context.mounted) {
       if (!userDoc.exists) {
-        // 第一次登入，導向個人資料建立頁面
+        // 第一次登入 → 導向學校選擇頁面
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
+          MaterialPageRoute(builder: (context) => const SchoolSelectPage()),
         );
-      } else {
+      }
+      else {
         // 已建立個人資料，進入主頁
         Navigator.pushReplacement(
           context,
@@ -182,7 +204,7 @@ class _AuthGateState extends State<AuthGate> {
     } else {
       // 無個人資料 → 導向編輯頁
       setState(() {
-        _startPage = const ProfileSetupPage();
+        _startPage = const SchoolSelectPage();
         _isLoading = false;
       });
     }

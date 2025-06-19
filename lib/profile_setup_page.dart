@@ -4,11 +4,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'home_page.dart';
 
 class ProfileSetupPage extends StatefulWidget {
-  const ProfileSetupPage({super.key});
+  final String school;
+
+  const ProfileSetupPage({super.key, required this.school});
 
   @override
   State<ProfileSetupPage> createState() => _ProfileSetupPageState();
 }
+
 
 class _ProfileSetupPageState extends State<ProfileSetupPage> {
   final TextEditingController nameController = TextEditingController();
@@ -27,8 +30,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       'name': name,
       'bio': bio,
       'email': user.email,
+      'school': widget.school, // 儲存學校
       'createdAt': FieldValue.serverTimestamp(),
     });
+
 
     if (context.mounted) {
       Navigator.pushReplacement(
