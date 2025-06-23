@@ -43,7 +43,397 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     '夜貓子': '靈感總在深夜爆發',
   };
 
-  final Set<String> selectedTags = {};
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  final nameController = TextEditingController();
+  final birthdayController = TextEditingController();
+  String? gender;
+  String? genderDetail;
+  String? orientation;
+  final otherOrientationController = TextEditingController();
+
+  Set<String> selectedTags = {};
+  String? selectedMBTI;
+  String? selectedZodiac;
+
+  final TextEditingController customSportController = TextEditingController();
+  final TextEditingController customPetController = TextEditingController();
+
+  final List<String> sports = ['籃球', '排球', '足球', '桌球', '羽球'];
+  final List<String> pets = ['狗', '貓', '小鳥', '爬蟲類', '兔子'];
+  final List<String> mbtiList = [
+    'ISTJ', 'ISFJ', 'INFJ', 'INTJ',
+    'ISTP', 'ISFP', 'INFP', 'INTP',
+    'ESTP', 'ESFP', 'ENFP', 'ENTP',
+    'ESTJ', 'ESFJ', 'ENFJ', 'ENTJ',
+  ];
+  final List<String> zodiacList = [
+    '牡羊座', '金牛座', '雙子座', '巨蟹座', '獅子座', '處女座',
+    '天秤座', '天蠍座', '射手座', '摩羯座', '水瓶座', '雙魚座',
+  ];
+
+  void _nextPage() async {
+    if (_currentPage == 0) {
+      final name = nameController.text.trim();
+      if (name.isEmpty) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('哈囉，$name!'),
+          content: const Text('確認使用此名稱嗎？'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('編輯名稱')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('確定使用此名稱')),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    if (_currentPage < 5) {
+      setState(() => _currentPage++);
+      _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    } else {
+      _submit();
+    }
+  }
+
+  void _prevPage() {
+    if (_currentPage > 0) {
+      setState(() => _currentPage--);
+      _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    }
+  }
+
+  Future<void> _submit() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final profileData = {
+      'name': nameController.text.trim(),
+      'birthday': birthdayController.text.trim(),
+      'gender': gender,
+      'genderDetail': genderDetail,
+      'orientation': orientation == '未列出'
+          ? otherOrientationController.text.trim()
+          : orientation,
+      'tags': selectedTags.toList(),
+      'mbti': selectedMBTI,
+      'zodiac': selectedZodiac,
+    };
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set(profileData);
+
+    if (context.mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+    }
+  }
+
+  Widget _buildProgressBar() => Padding(
+        padding: const EdgeInsets.all(12),
+        child: LinearProgressIndicator(value: (_currentPage + 1) / 6),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildProgressBar(),
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildNamePage(),
+                  _buildBirthdayPage(),
+                  _buildGenderPage(),
+                  _buildOrientationPage(),
+                  _buildTagPage(),
+                  _buildManyTagPage(),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (_currentPage > 0)
+                  TextButton(onPressed: _prevPage, child: const Text('上一步')),
+                ElevatedButton(
+                  onPressed: _nextPage,
+                  child: Text(_currentPage == 5 ? '完成' : '下一步'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNamePage() => _buildInputPage(
+        title: '姓名',
+        controller: nameController,
+        hint: '請輸入你的名字',
+        subtitle: '此名稱日後便無法更改',
+      );
+
+  Widget _buildBirthdayPage() => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('生日', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            TextField(
+              controller: birthdayController,
+              readOnly: true,
+              onTap: () async {
+                final now = DateTime.now();
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime(now.year - 20),
+                  firstDate: DateTime(1900),
+                  lastDate: now,
+                );
+                if (picked != null) {
+                  birthdayController.text = "${picked.year}/${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}";
+                }
+              },
+              decoration: const InputDecoration(hintText: '請選擇生日'),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildGenderPage() {
+    final isDiverse = gender == '多元性別';
+    final diverseOptions = ['性別一', '性別二', '性別三'];
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('性別', style: TextStyle(fontSize: 20)),
+          const SizedBox(height: 12),
+          for (final g in ['男性', '女性', '多元性別'])
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  gender = g;
+                  genderDetail = null;
+                }),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: gender == g ? Colors.pink.shade100 : null,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: Text(g),
+              ),
+            ),
+          if (isDiverse)
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Wrap(
+                spacing: 8,
+                children: diverseOptions.map((opt) => ChoiceChip(
+                  label: Text(opt),
+                  selected: genderDetail == opt,
+                  onSelected: (_) => setState(() => genderDetail = opt),
+                )).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrientationPage() => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('性向', style: TextStyle(fontSize: 20)),
+            const SizedBox(height: 12),
+            for (final o in ['異性戀', '同性戀', '雙性戀', '無性戀', '摸索中', '未列出'])
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: OutlinedButton(
+                  onPressed: () => setState(() => orientation = o),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: orientation == o ? Colors.pink.shade100 : null,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: Text(o),
+                ),
+              ),
+            if (orientation == '未列出')
+              TextField(
+                controller: otherOrientationController,
+                decoration: const InputDecoration(hintText: '請輸入你的性向'),
+              ),
+          ],
+        ),
+      );
+
+  Widget _buildTagPage() => SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('興趣與標籤', style: TextStyle(fontSize: 20)),
+            const SizedBox(height: 12),
+            const Text('運動'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final tag in sports)
+                  ChoiceChip(
+                    label: Text(tag),
+                    selected: selectedTags.contains(tag),
+                    onSelected: (selected) {
+                      setState(() {
+                        selected ? selectedTags.add(tag) : selectedTags.remove(tag);
+                      });
+                    },
+                  ),
+              ],
+            ),
+            TextField(
+              controller: customSportController,
+              decoration: InputDecoration(
+                labelText: '新增其他運動',
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () {
+                    final text = customSportController.text.trim();
+                    if (text.isNotEmpty) {
+                      setState(() {
+                        selectedTags.add(text);
+                        customSportController.clear();
+                        sports.add(text);
+                      });
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('寵物'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final tag in pets)
+                  ChoiceChip(
+                    label: Text(tag),
+                    selected: selectedTags.contains(tag),
+                    onSelected: (selected) {
+                      setState(() {
+                        selected ? selectedTags.add(tag) : selectedTags.remove(tag);
+                      });
+                    },
+                  ),
+              ],
+            ),
+            TextField(
+              controller: customPetController,
+              decoration: InputDecoration(
+                labelText: '新增其他寵物',
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () {
+                    final text = customPetController.text.trim();
+                    if (text.isNotEmpty) {
+                      setState(() {
+                        selectedTags.add(text);
+                        customPetController.clear();
+                        pets.add(text);
+                      });
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('MBTI'),
+            Wrap(
+              spacing: 8,
+              children: mbtiList.map((type) => ChoiceChip(
+                label: Text(type),
+                selected: selectedMBTI == type,
+                onSelected: (_) => setState(() => selectedMBTI = type),
+              )).toList(),
+            ),
+            const SizedBox(height: 16),
+            const Text('星座'),
+            Wrap(
+              spacing: 8,
+              children: zodiacList.map((sign) => ChoiceChip(
+                label: Text(sign),
+                selected: selectedZodiac == sign,
+                onSelected: (_) => setState(() => selectedZodiac = sign),
+              )).toList(),
+            ),
+          ],
+        ),
+      );
+
+  Widget _buildManyTagPage() => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Stack(
+                  children: [
+                    Text(
+                      '選擇個性化標籤',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 10
+                          ..color = Colors.white,
+                      ),
+                    ),
+                    const Text(
+                      '選擇個性化標籤',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF5A4A3C),
+                        shadows: [
+                          Shadow(
+                            offset: Offset(2, 2),
+                            blurRadius: 2,
+                            color: Color(0x80000000),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: ListView(
+                  children: allTags.map(_buildArrowTag).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   Future<void> _saveProfile() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -71,6 +461,31 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     }
   }
 
+  Widget _buildInputPage({
+    required String title,
+    required TextEditingController controller,
+    String? hint,
+    String? subtitle,
+  }) =>
+      Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(hintText: hint),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 4),
+              Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ],
+        ),
+      );
+  
   Widget _buildArrowTag(String tag) {
     final isSelected = selectedTags.contains(tag);
     final description = tagDescriptions[tag] ?? '';
@@ -160,69 +575,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Stack(
-                  children: [
-                    Text(
-                      '選擇個性化標籤',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        foreground: Paint()
-                          ..style = PaintingStyle.stroke
-                          ..strokeWidth = 10
-                          ..color = Colors.white,
-                      ),
-                    ),
-                    const Text(
-                      '選擇個性化標籤',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF5A4A3C),
-                        shadows: [
-                          Shadow(
-                            offset: Offset(2, 2),
-                            blurRadius: 2,
-                            color: Color(0x80000000),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: ListView(
-                  children: allTags.map(_buildArrowTag).toList(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.pink,
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Text('儲存並進入'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
+
 
 class LeftArrowClipper extends CustomClipper<Path> {
   @override
