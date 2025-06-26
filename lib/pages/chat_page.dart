@@ -23,51 +23,69 @@ class _ChatPageState extends State<ChatPage> {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('matches')
-            .where('users', arrayContains: currentUser!.uid)
+            .where('user1', isEqualTo: currentUser!.uid)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final matchDocs = snapshot.data?.docs ?? [];
-          if (matchDocs.isEmpty) {
-            return const Center(child: Text('目前沒有配對對象')); 
-          }
+          final matchDocs1 = snapshot.data?.docs ?? [];
 
-          return ListView.builder(
-            itemCount: matchDocs.length,
-            itemBuilder: (context, index) {
-              final match = matchDocs[index].data() as Map<String, dynamic>;
-              final matchedUserId = (match['users'] as List).firstWhere((id) => id != currentUser!.uid);
+          // Query for matches where current user is user2
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('matches')
+                .where('user2', isEqualTo: currentUser!.uid)
+                .snapshots(),
+            builder: (context, snapshot2) {
+              final matchDocs2 = snapshot2.data?.docs ?? [];
+              final allMatchDocs = [...matchDocs1, ...matchDocs2];
 
-              return FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('users').doc(matchedUserId).get(),
-                builder: (context, userSnapshot) {
-                  if (!userSnapshot.hasData) {
-                    return const ListTile(title: Text('載入中...'));
+              if (allMatchDocs.isEmpty) {
+                return const Center(child: Text('目前沒有配對對象'));
+              }
+
+              return ListView.builder(
+                itemCount: allMatchDocs.length,
+                itemBuilder: (context, index) {
+                  final match = allMatchDocs[index].data() as Map<String, dynamic>;
+                  String matchedUserId;
+                  if (match['user1'] == currentUser!.uid) {
+                    matchedUserId = match['user2'];
+                  } else {
+                    matchedUserId = match['user1'];
                   }
 
-                  final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                  return FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance.collection('users').doc(matchedUserId).get(),
+                    builder: (context, userSnapshot) {
+                      if (!userSnapshot.hasData) {
+                        return const ListTile(title: Text('載入中...'));
+                      }
 
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: userSnapshot.data!.exists && userData['photoURL'] != null
-                          ? NetworkImage(userData['photoURL'])
-                          : null,
-                      child: userData['photoURL'] == null ? const Icon(Icons.person) : null,
-                    ),
-                    title: Text(userData['name'] ?? '未知使用者'),
-                    subtitle: Text(userData['school'] ?? ''),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatRoomPage(
-                            matchedUserId: matchedUserId,
-                            matchedUserName: userData['name'] ?? '',
-                          ),
+                      final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: userSnapshot.data!.exists && userData['photoURL'] != null
+                              ? NetworkImage(userData['photoURL'])
+                              : null,
+                          child: userData['photoURL'] == null ? const Icon(Icons.person) : null,
                         ),
+                        title: Text(userData['name'] ?? '未知使用者'),
+                        subtitle: Text(userData['school'] ?? ''),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatRoomPage(
+                                matchedUserId: matchedUserId,
+                                matchedUserName: userData['name'] ?? '',
+                              ),
+                            ),
+                          );
+                        },
                       );
                     },
                   );
