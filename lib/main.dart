@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_setup_page.dart'; // 等下會建立
 import 'home_page.dart';
 import 'school_select_page.dart'; // 你的主交友頁面
+import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 
 void main() async { // 記得awit要配上async
   WidgetsFlutterBinding.ensureInitialized();
@@ -199,7 +200,25 @@ class _AuthGateState extends State<AuthGate> {
     _checkAuth();
   }
 
+Future<void> _requestPermissions() async {
+  final statuses = await [
+    Permission.photos,
+    Permission.storage,
+  ].request();
+
+  if (statuses[Permission.photos] != PermissionStatus.granted &&
+      statuses[Permission.storage] != PermissionStatus.granted) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請允許權限以使用照片與檔案功能')),
+      );
+    }
+  }
+}
+
+
   Future<void> _checkAuth() async {
+    await _requestPermissions();
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {

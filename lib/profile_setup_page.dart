@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_page.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ProfileSetupPage extends StatefulWidget {
   final String school;
@@ -13,6 +16,8 @@ class ProfileSetupPage extends StatefulWidget {
 }
 
 class _ProfileSetupPageState extends State<ProfileSetupPage> {
+  File? _selectedImage;
+
   final List<String> allTags = [
     '活潑開朗',
     '文靜內向',
@@ -56,7 +61,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   Set<String> selectedTags = {};
   String? selectedMBTI;
   String? selectedZodiac;
+  String? _photoUrl;
+  bool _isUploadingPhoto = false;
 
+      
   final TextEditingController customSportController = TextEditingController();
   final TextEditingController customPetController = TextEditingController();
 
@@ -91,7 +99,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       if (confirmed != true) return;
     }
 
-    if (_currentPage < 5) {
+    if (_currentPage < 6) {
       setState(() => _currentPage++);
       _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
@@ -106,9 +114,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     }
   }
 
+  bool _isLoading = false;
+
   Future<void> _submit() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    
 
     final profileData = {
       'name': nameController.text.trim(),
@@ -121,8 +132,19 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       'tags': selectedTags.toList(),
       'mbti': selectedMBTI,
       'zodiac': selectedZodiac,
+      'school': widget.school,
+      'email': user.email,
+      'photoUrl': _photoUrl, // ✅ 加這行
+      'createdAt': FieldValue.serverTimestamp(),
     };
 
+    /*if (_selectedImage != null) {
+      final ref = FirebaseStorage.instance.ref().child('user_photos').child('${user.uid}.jpg');
+      await ref.putFile(_selectedImage!);
+      final photoUrl = await ref.getDownloadURL();
+      profileData['photoUrl'] = photoUrl;
+    }*/
+    
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set(profileData);
 
     if (context.mounted) {
@@ -132,7 +154,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
 
   Widget _buildProgressBar() => Padding(
         padding: const EdgeInsets.all(12),
-        child: LinearProgressIndicator(value: (_currentPage + 1) / 6),
+        child: LinearProgressIndicator(value: (_currentPage + 1) / 7),
       );
 
   @override
@@ -148,6 +170,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildNamePage(),
+                  _buildPhotoUploadPage(),
                   _buildBirthdayPage(),
                   _buildGenderPage(),
                   _buildOrientationPage(),
@@ -163,7 +186,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   TextButton(onPressed: _prevPage, child: const Text('上一步')),
                 ElevatedButton(
                   onPressed: _nextPage,
-                  child: Text(_currentPage == 5 ? '完成' : '下一步'),
+                  child: Text(_currentPage == 6 ? '完成' : '下一步'),
                 ),
               ],
             ),
@@ -172,6 +195,83 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       ),
     );
   }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    setState(() {
+      _selectedImage = File(pickedFile.path);
+      _isUploadingPhoto = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null){
+        
+        return;
+      } 
+
+      // debug print
+      //print('user.uid: ${user.uid}');
+      //print('_selectedImage: ${_selectedImage?.path}');
+
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('user_photos')
+          .child('${user.uid}.jpg');
+
+      await ref.putFile(_selectedImage!);
+      final url = await ref.getDownloadURL();
+
+      setState(() {
+        _photoUrl = url;
+        _isUploadingPhoto = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('照片上傳成功')),
+      );
+    } catch (e) {
+      setState(() => _isUploadingPhoto = false);
+      //print('照片上傳失敗: $e'); // debug print
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('照片上傳失敗：$e')),
+      );
+    }
+  }
+
+
+  Widget _buildPhotoUploadPage() => Padding(
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      children: [
+        const Text('上傳你的照片', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: _pickImage,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CircleAvatar(
+                radius: 80,
+                backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : null,
+                child: _selectedImage == null ? const Icon(Icons.add_a_photo, size: 40) : null,
+              ),
+              if (_isUploadingPhoto)
+                const CircularProgressIndicator(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          _photoUrl != null ? '已上傳照片 ✅' : '這將成為你的主照片',
+          style: TextStyle(color: _photoUrl != null ? Colors.green : Colors.black),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildNamePage() => _buildInputPage(
         title: '姓名',
