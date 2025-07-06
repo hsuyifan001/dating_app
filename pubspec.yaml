@@ -66,9 +66,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/icon.png
-    - assets/welcome.png
-    - assets/school_page_background.png
+    - assets/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
