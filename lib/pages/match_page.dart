@@ -161,6 +161,30 @@ class _MatchPageState extends State<MatchPage> {
 
           return Stack(
             children: [
+              //使用者照片
+              Positioned(
+                left: bgLeft + bgWidth * (64.0 / figmaWidth),
+                top: bgTop + bgHeight * (126.0 / figmaHeight),
+                width: bgWidth * (287.0 / figmaWidth),
+                height: bgWidth * (287.0 / figmaWidth), // 保持正方形
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: users.isNotEmpty && (users[0].data() as Map)['photoUrl'] != null && (users[0].data() as Map)['photoUrl'].toString().isNotEmpty
+                      ? Image.network(
+                          (users[0].data() as Map)['photoUrl'],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Image.asset(
+                            'assets/match_default.jpg',
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Image.asset(
+                          'assets/match_default.jpg',
+                          fit: BoxFit.cover,
+                        ),
+                ),
+              ),
+              
               // 背景圖片
               Positioned.fill(
                 child: Image.asset(
@@ -169,6 +193,8 @@ class _MatchPageState extends State<MatchPage> {
                   alignment: Alignment.topCenter,
                 ),
               ),
+              
+              
               // 名字方框
               Positioned(
                 left: nameBoxLeftPx,
