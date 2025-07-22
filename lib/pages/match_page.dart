@@ -167,30 +167,37 @@ class _MatchPageState extends State<MatchPage> {
                 top: bgTop + bgHeight * (126.0 / figmaHeight),
                 width: bgWidth * (287.0 / figmaWidth),
                 height: bgWidth * (287.0 / figmaWidth), // 保持正方形
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: users.isNotEmpty && (users[0].data() as Map)['photoUrl'] != null && (users[0].data() as Map)['photoUrl'].toString().isNotEmpty
-                      ? Image.network(
-                          (users[0].data() as Map)['photoUrl'],
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Image.asset(
+                child: GestureDetector(
+                  onTap: users.isNotEmpty
+                    ? () => _showUserDetail(context, users[0].data() as Map)
+                    : null,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: users.isNotEmpty && (users[0].data() as Map)['photoUrl'] != null && (users[0].data() as Map)['photoUrl'].toString().isNotEmpty
+                        ? Image.network(
+                            (users[0].data() as Map)['photoUrl'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Image.asset(
+                              'assets/match_default.jpg',
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Image.asset(
                             'assets/match_default.jpg',
                             fit: BoxFit.cover,
                           ),
-                        )
-                      : Image.asset(
-                          'assets/match_default.jpg',
-                          fit: BoxFit.cover,
-                        ),
+                  ),
                 ),
               ),
               
               // 背景圖片
               Positioned.fill(
-                child: Image.asset(
-                  'assets/match_background.png',
-                  fit: BoxFit.contain,
-                  alignment: Alignment.topCenter,
+                child: IgnorePointer(
+                  child: Image.asset(
+                    'assets/match_background.png',
+                    fit: BoxFit.contain,
+                    alignment: Alignment.topCenter,
+                  ),
                 ),
               ),
               
@@ -227,37 +234,37 @@ class _MatchPageState extends State<MatchPage> {
                   ),
                 ),
               ),
-              for (int i = 0; i < 6; i++)
-                Positioned(
-                  left: tagBoxLeftPx + (i % 3) * (tagBoxWidthPx + tagBoxHSpacePx),
-                  top: tagBoxTopPx + (i ~/ 3) * (tagBoxHeightPx + tagBoxVSpacePx),
-                  width: tagBoxWidthPx,
-                  height: tagBoxHeightPx,
-                  child: Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.pink.shade100, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.pink.shade50,
-                          blurRadius: 2,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      tags.length > i ? tags[i].toString() : '',
-                      style: const TextStyle(
-                        color: Colors.pink,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
+              for (int i = 0; i < (tags.length > 6 ? 6 : tags.length); i++)
+              Positioned(
+                left: tagBoxLeftPx + (i % 3) * (tagBoxWidthPx + tagBoxHSpacePx),
+                top: tagBoxTopPx + (i ~/ 3) * (tagBoxHeightPx + tagBoxVSpacePx),
+                width: tagBoxWidthPx,
+                height: tagBoxHeightPx,
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.pink.shade100, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.pink.shade50,
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
                       ),
-                      overflow: TextOverflow.ellipsis,
+                    ],
+                  ),
+                  child: Text(
+                    tags[i].toString(),
+                    style: const TextStyle(
+                      color: Colors.pink,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+              ),
               Positioned(
                 left: bgLeft + bgWidth * (45.0 / figmaWidth),
                 top: bgTop + bgHeight * (701.0 / figmaHeight),
@@ -330,4 +337,70 @@ class _MatchPageState extends State<MatchPage> {
     );
   }
 
+
+  void _showUserDetail(BuildContext context, Map userData) {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (context) {
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 頭像
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: userData['photoUrl'] != null && userData['photoUrl'].toString().isNotEmpty
+                    ? Image.network(
+                        userData['photoUrl'],
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                      )
+                    : Image.asset(
+                        'assets/match_default.jpg',
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                      ),
+              ),
+              const SizedBox(height: 16),
+              // 名字
+              Text(
+                userData['name'] ?? '',
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              // 學校
+              if (userData['school'] != null)
+                Text(
+                  userData['school'],
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              const SizedBox(height: 8),
+              // 標籤
+              if (userData['tags'] != null && userData['tags'] is List)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: (userData['tags'] as List)
+                      .take(10)
+                      .map<Widget>((tag) => Chip(
+                            label: Text(tag.toString()),
+                            backgroundColor: Colors.pink.shade50,
+                          ))
+                      .toList(),
+                ),
+              // 你可以根據 userData 增加更多欄位（MBTI、星座、興趣等）
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 }
