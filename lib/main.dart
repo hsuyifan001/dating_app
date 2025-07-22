@@ -162,7 +162,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
         // 第一次登入 → 導向學校選擇頁面
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const SchoolSelectPage()),
+          MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
         );
       }
       else {

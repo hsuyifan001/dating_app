@@ -7,9 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 class ProfileSetupPage extends StatefulWidget {
-  final String school;
 
-  const ProfileSetupPage({super.key, required this.school});
+  const ProfileSetupPage({super.key});
 
   @override
   State<ProfileSetupPage> createState() => _ProfileSetupPageState();
@@ -247,7 +246,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   String? selectedZodiac;
   String? _photoUrl;
   bool _isUploadingPhoto = false;
-
+  Set<String> matchSchools = {};
       
   final TextEditingController customSportController = TextEditingController();
   final TextEditingController customPetController = TextEditingController();
@@ -283,7 +282,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       if (confirmed != true) return;
     }
 
-    if (_currentPage < 1) {
+    if (_currentPage < 2) {
       setState(() => _currentPage++);
       _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
@@ -302,9 +301,19 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     
+    String school = '';
+    final email = user.email ?? '';
+    if (email.endsWith('@g.nycu.edu.tw') || email.endsWith('@nycu.edu.tw')) {
+      school = 'NYCU';
+    } else if (email.endsWith('@gapp.nthu.edu.tw') || email.endsWith('@nthu.edu.tw')) {
+      school = 'NTHU';
+    } else {
+      school = '其他';
+    }
 
     final profileData = {
       'name': nameController.text.trim(),
+      'matchSchools': matchSchools.toList(),
       // 'birthday': birthdayController.text.trim(),
       'gender': gender,
       'matchGender': matchgender.toList(),
@@ -314,7 +323,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       'tags': selectedTags.toList(),
       // 'mbti': selectedMBTI,
       // 'zodiac': selectedZodiac,
-      'school': widget.school,
+      'school': school,
       'email': user.email,
       'photoUrl': _photoUrl, // ✅ 加這行
       'createdAt': FieldValue.serverTimestamp(),
@@ -358,12 +367,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if(_currentPage == 0)  
+              if(_currentPage == 1)  
                 Image.asset(
                   'assets/profile_setup_background.png',
                   fit: BoxFit.cover,
                 ),
-              if(_currentPage == 1)
+              if(_currentPage == 2)
                 Image.asset(
                   'assets/tags_background.png',
                   fit: BoxFit.cover,
@@ -378,8 +387,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                       controller: _pageController,
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
+                        
                         // _buildNamePage(),
                         _buildBasicInfoPage(),
+                        _buildMatchSchoolPage(),
                         _buildTagsPage(),
                         // _buildPhotoUploadPage(),
                         // _buildBirthdayPage(),
@@ -397,7 +408,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                         ElevatedButton(onPressed: _prevPage, child: const Text('上一步')),
                       ElevatedButton(
                         onPressed: _nextPage,
-                        child: Text(_currentPage == 1 ? '完成' : '下一步'),
+                        child: Text(_currentPage == 2 ? '完成' : '下一步'),
                       ),
                     ],
                   ),
@@ -409,6 +420,116 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       ),
     );
   }
+
+Widget _buildMatchSchoolPage() {
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      Image.asset(
+        'assets/school_page_background.png',
+        fit: BoxFit.cover,
+      ),
+      Container(
+        color: Colors.black.withOpacity(0.05),
+      ),
+      Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                children: [
+                  Text(
+                    '選擇想要配對的學校（可複選）',
+                    style: TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w400,
+                      fontSize: 25,
+                      height: 1.0,
+                      letterSpacing: 0.0,
+                      foreground: Paint()
+                        ..style = PaintingStyle.stroke
+                        ..strokeWidth = 4
+                        ..color = Colors.white,
+                    ),
+                  ),
+                  Text(
+                    '選擇想要配對的學校（可複選）',
+                    style: TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w400,
+                      fontSize: 25,
+                      height: 1.0,
+                      letterSpacing: 0.0,
+                      color: Color(0xFF5A4A3C),
+                      shadows: [
+                        Shadow(
+                          offset: Offset(2, 2),
+                          blurRadius: 2,
+                          color: Color(0x80000000),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 48),
+              _buildSchoolChoice('國立陽明交通大學', 'nycu'),
+              const SizedBox(height: 20),
+              _buildSchoolChoice('國立清華大學', 'nthu'),
+              const SizedBox(height: 40),
+             
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildSchoolChoice(String label, String code) {
+  final isSelected = matchSchools.contains(code);
+  return ElevatedButton(
+    onPressed: () {
+      setState(() {
+        if (isSelected) {
+          matchSchools.remove(code);
+        } else {
+          matchSchools.add(code);
+        }
+      });
+    },
+    style: ElevatedButton.styleFrom(
+      side: BorderSide(
+        color: isSelected ? Colors.orange : Color(0xFF89C9C2),
+        width: 3,
+      ),
+      backgroundColor: isSelected ? Colors.orange.shade100 : Color(0xFFFEECEC),
+      foregroundColor: Color(0xFF5A4A3C),
+      minimumSize: const Size(double.infinity, 60),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (isSelected)
+          const Icon(Icons.check_circle, color: Colors.orange),
+        if (isSelected) const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Kiwi Maru',
+            fontWeight: FontWeight.w400,
+            fontSize: 18,
+            height: 1.0,
+            letterSpacing: 0.0,
+            color: Color(0xFF5A4A3C),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildBasicInfoPage() => Padding(
       padding: const EdgeInsets.all(24),

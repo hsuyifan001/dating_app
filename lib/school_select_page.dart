@@ -8,7 +8,7 @@ class SchoolSelectPage extends StatelessWidget {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ProfileSetupPage(school: schoolCode),
+        builder: (context) => ProfileSetupPage(),
       ),
     );
   }
@@ -40,7 +40,7 @@ class SchoolSelectPage extends StatelessWidget {
                   Stack(
                     children: [
                       Text(
-                        '選擇學校',
+                        '選擇想要配對的學校',
                         style: TextStyle(
                           fontFamily: 'Kiwi Maru',
                           fontWeight: FontWeight.w400,
