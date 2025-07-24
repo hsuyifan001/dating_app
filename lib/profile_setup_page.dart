@@ -349,10 +349,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       body: Container(
         decoration: BoxDecoration(
           // 根據頁面決定背景顏色或漸層
-          color: _currentPage == 1
+          color: _currentPage == 2
               ? const Color(0xFFCEEAFF)
               : null, // 若是漸層則不能同時設 color
-          gradient: _currentPage == 1
+          gradient: _currentPage == 0
               ? const LinearGradient(
                   colors: [
                     Color(0xFF9DD6FF),
@@ -363,13 +363,18 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                 )
               : null,
         ),
-        child: SafeArea(
+        // child: SafeArea(
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if(_currentPage == 1)  
+              if(_currentPage == 0)  
                 Image.asset(
                   'assets/profile_setup_background.png',
+                  fit: BoxFit.cover,
+                ),
+              if(_currentPage == 1)
+                Image.asset(
+                  'assets/school_page_background.png',
                   fit: BoxFit.cover,
                 ),
               if(_currentPage == 2)
@@ -378,7 +383,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   fit: BoxFit.cover,
                 ),
               Container(
-                color: const Color.fromARGB(255, 51, 51, 51).withOpacity(0.05),
+                // color: const Color.fromARGB(255, 51, 51, 51).withOpacity(0.05),
+                color: Colors.black.withOpacity(0.05),
               ),
               Column(
                 children: [
@@ -387,7 +393,6 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                       controller: _pageController,
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
-                        
                         // _buildNamePage(),
                         _buildBasicInfoPage(),
                         _buildMatchSchoolPage(),
@@ -416,7 +421,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
               ),
             ],
           ),
-        ),
+        // ),
       ),
     );
   }
@@ -425,13 +430,9 @@ Widget _buildMatchSchoolPage() {
   return Stack(
     fit: StackFit.expand,
     children: [
-      Image.asset(
-        'assets/school_page_background.png',
-        fit: BoxFit.cover,
-      ),
-      Container(
-        color: Colors.black.withOpacity(0.05),
-      ),
+      // Container(
+      //   color: Colors.black.withOpacity(0.05),
+      // ),
       Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -441,7 +442,7 @@ Widget _buildMatchSchoolPage() {
               Stack(
                 children: [
                   Text(
-                    '選擇想要配對的學校（可複選）',
+                    '選擇想要配對的學校',
                     style: TextStyle(
                       fontFamily: 'Kiwi Maru',
                       fontWeight: FontWeight.w400,
@@ -455,7 +456,44 @@ Widget _buildMatchSchoolPage() {
                     ),
                   ),
                   Text(
-                    '選擇想要配對的學校（可複選）',
+                    '選擇想要配對的學校',
+                    style: TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w400,
+                      fontSize: 25,
+                      height: 1.0,
+                      letterSpacing: 0.0,
+                      color: Color(0xFF5A4A3C),
+                      shadows: [
+                        Shadow(
+                          offset: Offset(2, 2),
+                          blurRadius: 2,
+                          color: Color(0x80000000),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 15),
+              Stack(
+                children: [
+                  Text(
+                    '（可複選）',
+                    style: TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w400,
+                      fontSize: 25,
+                      height: 1.0,
+                      letterSpacing: 0.0,
+                      foreground: Paint()
+                        ..style = PaintingStyle.stroke
+                        ..strokeWidth = 4
+                        ..color = Colors.white,
+                    ),
+                  ),
+                  Text(
+                    '（可複選）',
                     style: TextStyle(
                       fontFamily: 'Kiwi Maru',
                       fontWeight: FontWeight.w400,
@@ -589,11 +627,11 @@ Widget _buildSchoolChoice(String label, String code) {
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(40),
-                      borderSide: const BorderSide(color: Colors.grey),
+                      borderSide: const BorderSide(color: Color(0xFF89C9C2), width: 3),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(40),
-                      borderSide: const BorderSide(color: Colors.blue, width: 2),
+                      borderSide: const BorderSide(color: const Color(0xFF1B578B), width: 3),
                     ),
                   ),
                 ),
@@ -620,8 +658,12 @@ Widget _buildSchoolChoice(String label, String code) {
                       gender = g;
                     }),
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: gender == g ? Colors.pink.shade100 : null,
+                      backgroundColor: gender == g ? const Color.fromARGB(255, 142, 195, 241) : null,
                       minimumSize: Size(120, 50),
+                      side: BorderSide(
+                        color: gender == g ? const Color(0xFF1B578B) : Color(0xFF89C9C2),
+                        width: 3,
+                      ),
                     ),
                     child: Text(g),
                   ),
@@ -653,8 +695,12 @@ Widget _buildSchoolChoice(String label, String code) {
                       }
                     }),
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: matchgender.contains(g) ? Colors.pink.shade100 : null,
+                      backgroundColor: matchgender.contains(g) ? const Color.fromARGB(255, 142, 195, 241) : null,
                       minimumSize: Size(120, 50),
+                      side: BorderSide(
+                        color: matchgender.contains(g) ? const Color(0xFF1B578B) : Color(0xFF89C9C2),
+                        width: 3,
+                      ),
                     ),
                     child: Text(g),
                   ),
