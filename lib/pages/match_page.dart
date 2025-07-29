@@ -23,185 +23,169 @@ class _MatchPageState extends State<MatchPage> {
   }
 
 
-  Future<void> _loadUsers() async {
-    if (user == null) return;
-      final currentUserId = user!.uid;
-      final now = DateTime.now();
-      final todayKey = DateFormat('yyyyMMdd').format(now);
+Future<List<DocumentSnapshot>> _batchedUserDocsByIds(List<String> ids) async {
+  const int batchSize = 10;
+  List<DocumentSnapshot> allDocs = [];
 
-      final matchDocRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUserId)
-          .collection('dailyMatches')
-          .doc(todayKey);
-
-      final matchDoc = await matchDocRef.get();
-
-      // 新增判斷 ReachDailyLimit
-      if (matchDoc.exists) {
-        final data = matchDoc.data() ?? {};
-        final userIds = List<String>.from(data['userIds'] ?? []);
-        final reachDailyLimit = data['ReachDailyLimit'] == true;
-
-        // 如果已達到上限，直接顯示通知並 return
-        if (reachDailyLimit) {
-          setState(() {
-            users = [];
-            isLoading = false;
-          });
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('今日配對上限已到，請明天再來！')),
-            );
-          }
-          return;
-        }
-
-        if (userIds.isEmpty) if (userIds.isEmpty) {
-          setState(() {
-            users = [];
-            isLoading = false;
-          });
-          return;
-        }
-
-        final userDocs = await FirebaseFirestore.instance
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: userIds)
-            .get();
-
-        setState(() {
-          users = userDocs.docs;
-          isLoading = false;
-        });
-        return;
-      }
-
-
-    // 1. 取得已推播過的 userId
-    final pushedSnapshot = await FirebaseFirestore.instance
+  for (var i = 0; i < ids.length; i += batchSize) {
+    final batch = ids.sublist(i, i + batchSize > ids.length ? ids.length : i + batchSize);
+    final snapshot = await FirebaseFirestore.instance
         .collection('users')
-        .doc(currentUserId)
-        .collection('pushed')
+        .where(FieldPath.documentId, whereIn: batch)
         .get();
-    final pushedIds = pushedSnapshot.docs.map((doc) => doc.id).toSet();
+    allDocs.addAll(snapshot.docs);
+  }
 
-    // 2. 取得自己的配對條件
-    final currentUserDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(currentUserId)
-        .get();
-    final currentUserData = currentUserDoc.data() ?? {};
-    final matchGender = List<String>.from(currentUserData['matchGender'] ?? []);
-    final matchSchools = List<String>.from(currentUserData['matchSchools'] ?? []);
+  return allDocs;
+}
 
-    // 3. 前5位：對你按過愛心的人
-    final likedMeSnapshot = await FirebaseFirestore.instance
-        .collection('likes')
-        .where('to', isEqualTo: currentUserId)
-        .get();
-    final likedMeIds = likedMeSnapshot.docs.map((doc) => doc['from'] as String).toSet();
+Future<void> _loadUsers() async {
+  if (user == null) return;
+  final currentUserId = user!.uid;
+  final now = DateTime.now();
+  final todayKey = DateFormat('yyyyMMdd').format(now);
 
-    List<DocumentSnapshot> likedMeUsers = [];
-    if (likedMeIds.isNotEmpty) {
-      final likedMeUsersSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where(FieldPath.documentId, whereIn: likedMeIds.toList())
-          .get();
-      likedMeUsers = likedMeUsersSnapshot.docs
-          .where((doc) =>
-              matchGender.contains(doc['gender']) &&
-              !pushedIds.contains(doc.id) &&
-              doc.id != currentUserId)
-          .take(5)
-          .toList();
-    }
-    final likedMeUserIds = likedMeUsers.map((doc) => doc.id).toSet();
+  final matchDocRef = FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUserId)
+      .collection('dailyMatches')
+      .doc(todayKey);
 
-    // 4. 你按愛心的人的 tags
-    final myLikesSnapshot = await FirebaseFirestore.instance
-        .collection('likes')
-        .where('from', isEqualTo: currentUserId)
-        .get();
-    final myLikedIds = myLikesSnapshot.docs.map((doc) => doc['to'] as String).toList();
+  final matchDoc = await matchDocRef.get();
 
-    final tagCount = <String, int>{};
-    if (myLikedIds.isNotEmpty) {
-      final myLikedUsersSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where(FieldPath.documentId, whereIn: myLikedIds)
-          .get();
+  if (matchDoc.exists) {
+    final data = matchDoc.data() ?? {};
+    final userIds = List<String>.from(data['userIds'] ?? []);
+    final reachDailyLimit = data['ReachDailyLimit'] == true;
 
-      for (var doc in myLikedUsersSnapshot.docs) {
-        final tags = List<String>.from(doc['tags'] ?? []);
-        for (var tag in tags) {
-          tagCount[tag] = (tagCount[tag] ?? 0) + 1;
-        }
+    if (reachDailyLimit) {
+      setState(() {
+        users = [];
+        isLoading = false;
+      });
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('今日配對上限已到，請明天再來！')),
+        );
       }
+      return;
     }
 
-    final sortedTags = tagCount.keys.toList()
-      ..sort((a, b) => tagCount[b]!.compareTo(tagCount[a]!));
-    final topTags = sortedTags.take(3).toList();
+    if (userIds.isEmpty) {
+      setState(() {
+        users = [];
+        isLoading = false;
+      });
+      return;
+    }
 
-    // 5. 推薦15位擁有熱門 tag 的人
-    final tagUsersSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .where('gender', whereIn: matchGender)
-        .get();
+    final userDocs = await _batchedUserDocsByIds(userIds);
 
-    final tagUsers = tagUsersSnapshot.docs
-         .where((doc) =>
-          !pushedIds.contains(doc.id) &&
+    setState(() {
+      users = userDocs;
+      isLoading = false;
+    });
+    return;
+  }
+
+  // 1. 取得已推播過的 userId
+  final pushedSnapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUserId)
+      .collection('pushed')
+      .get();
+  final pushedIds = pushedSnapshot.docs.map((doc) => doc.id).toSet();
+
+  // 2. 取得自己的配對條件與 likedTagCount
+  final currentUserDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUserId)
+      .get();
+  final currentUserData = currentUserDoc.data() ?? {};
+  final matchGender = List<String>.from(currentUserData['matchGender'] ?? []);
+  final matchSchools = List<String>.from(currentUserData['matchSchools'] ?? []);
+  final likedTagCount = Map<String, int>.from(currentUserData['likedTagCount'] ?? {});
+
+  // 計算 top 3 tag
+  final sortedTags = likedTagCount.keys.toList()
+    ..sort((a, b) => likedTagCount[b]!.compareTo(likedTagCount[a]!));
+  final topTags = sortedTags.take(3).toList();
+
+  // 3. 對你按過愛心的人
+  final likedMeSnapshot = await FirebaseFirestore.instance
+      .collection('likes')
+      .where('to', isEqualTo: currentUserId)
+      .get();
+  final likedMeIds = likedMeSnapshot.docs.map((doc) => doc['from'] as String).toSet();
+
+  List<DocumentSnapshot> likedMeUsers = [];
+  if (likedMeIds.isNotEmpty) {
+    final allDocs = await _batchedUserDocsByIds(likedMeIds.toList());
+    likedMeUsers = allDocs
+        .where((doc) =>
+            matchGender.contains(doc['gender']) &&
+            !pushedIds.contains(doc.id) &&
+            doc.id != currentUserId)
+        .take(5)
+        .toList();
+  }
+  final likedMeUserIds = likedMeUsers.map((doc) => doc.id).toSet();
+
+  // 4. 查詢一次所有候選人（符合性別且未被推播）
+  final allCandidateSnapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .where('gender', whereIn: matchGender)
+      .get();
+  final allCandidateDocs = allCandidateSnapshot.docs
+      .where((doc) =>
           doc.id != currentUserId &&
+          !pushedIds.contains(doc.id))
+      .toList();
+
+  // 5. 從中挑出 tag 傾向者
+  final tagUsers = allCandidateDocs
+      .where((doc) =>
           !likedMeUserIds.contains(doc.id) &&
           (doc['tags'] as List).any((tag) => topTags.contains(tag)))
       .take(15)
       .toList();
+  final tagUserIds = tagUsers.map((doc) => doc.id).toSet();
 
-    final tagUserIds = tagUsers.map((doc) => doc.id).toSet();
+  // 6. 從剩下的中隨機選擇
+  final randomUsers = allCandidateDocs
+      .where((doc) =>
+          !likedMeUserIds.contains(doc.id) &&
+          !tagUserIds.contains(doc.id))
+      .toList()
+    ..shuffle();
+  final randomSelection = randomUsers.take(5).toList();
 
-    // 6. 隨機推薦5位
-    final allUsersSnapshot = await FirebaseFirestore.instance
+  // 7. 合併推薦名單
+  final recommendedUsers = [...likedMeUsers, ...tagUsers, ...randomSelection];
+
+  setState(() {
+    users = recommendedUsers;
+    isLoading = false;
+  });
+
+  // 8. 記錄 pushed
+  for (var doc in recommendedUsers) {
+    await FirebaseFirestore.instance
         .collection('users')
-        .where('gender', whereIn: matchGender)
-        .get();
+        .doc(currentUserId)
+        .collection('pushed')
+        .doc(doc.id)
+        .set({'pushedAt': FieldValue.serverTimestamp()});
+  }
 
-    final allUsers = allUsersSnapshot.docs
-        .where((doc) =>
-            !pushedIds.contains(doc.id) &&
-            doc.id != currentUserId &&
-            !likedMeUserIds.contains(doc.id) &&
-            !tagUserIds.contains(doc.id))
-        .toList();
-    allUsers.shuffle();
-    final randomUsers = allUsers.take(5).toList();
-
-    // 7. 合併推薦名單
-    final recommendedUsers = [...likedMeUsers, ...tagUsers, ...randomUsers];
-
-    setState(() {
-      users = recommendedUsers;
-      isLoading = false;
-    });
-
-    // 8. 記錄已推播過的人（進 pushed）
-    for (var doc in recommendedUsers) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUserId)
-          .collection('pushed')
-          .doc(doc.id)
-          .set({'pushedAt': FieldValue.serverTimestamp()});
-    }
-
-    // 9. 快取每日推薦記錄（進 dailyMatches）
+  // 9. 快取每日推薦
   await matchDocRef.set({
     'createdAt': FieldValue.serverTimestamp(),
     'userIds': recommendedUsers.map((doc) => doc.id).toList(),
-    'ReachDailyLimit': false, // 初始為 false
-    });
-  }
+    'ReachDailyLimit': false,
+  });
+}
+
   // ...existing code...
 
   Future<void> _showNextUser() async {
@@ -236,9 +220,11 @@ class _MatchPageState extends State<MatchPage> {
   }
   
   Future<void> _handleLike(String targetUserId) async {
+    final firestore = FirebaseFirestore.instance;
     final currentUserId = user!.uid;
-  
-    await FirebaseFirestore.instance
+
+    // 1. 儲存 like 記錄
+    await firestore
         .collection('likes')
         .doc('$currentUserId\_$targetUserId')
         .set({
@@ -246,23 +232,41 @@ class _MatchPageState extends State<MatchPage> {
       'to': targetUserId,
       'timestamp': FieldValue.serverTimestamp(),
     });
-  
-    final reverseLike = await FirebaseFirestore.instance
+
+    // 2. 取得被按愛心者的 tags
+    final targetUserDoc =
+        await firestore.collection('users').doc(targetUserId).get();
+    final targetTags = List<String>.from(targetUserDoc['tags'] ?? []);
+
+    // 3. 更新當前使用者的 likedTagCount 統計
+    final currentUserRef = firestore.collection('users').doc(currentUserId);
+    final currentUserDoc = await currentUserRef.get();
+    final currentLikedTagCount =
+        Map<String, dynamic>.from(currentUserDoc.data()?['likedTagCount'] ?? {});
+
+    for (final tag in targetTags) {
+      currentLikedTagCount[tag] = (currentLikedTagCount[tag] ?? 0) + 1;
+    }
+
+    await currentUserRef.update({'likedTagCount': currentLikedTagCount});
+
+    // 4. 檢查是否互相按愛心（已存在對方的 like）
+    final reverseLike = await firestore
         .collection('likes')
         .doc('$targetUserId\_$currentUserId')
         .get();
-  
+
     if (reverseLike.exists) {
       final matchId = currentUserId.compareTo(targetUserId) < 0
           ? '${currentUserId}_$targetUserId'
           : '${targetUserId}_$currentUserId';
-  
-      await FirebaseFirestore.instance.collection('matches').doc(matchId).set({
+
+      await firestore.collection('matches').doc(matchId).set({
         'user1': currentUserId,
         'user2': targetUserId,
         'matchedAt': FieldValue.serverTimestamp(),
       });
-  
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('🎉 配對成功！')),
@@ -274,7 +278,7 @@ class _MatchPageState extends State<MatchPage> {
       _showNextUser();
     }
   }
-  
+
   Future<void> _handleDislike(String targetUserId) async {
     // 你可以在這裡實作記錄不喜歡的邏輯，例如加入一個 dislikes collection
     _showNextUser();
