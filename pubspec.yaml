@@ -45,6 +45,10 @@ dependencies:
 
   intl: ^0.18.1
 
+  http: ^1.0.0
+  html: ^0.15.0
+  
+
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
   flutter_test:
