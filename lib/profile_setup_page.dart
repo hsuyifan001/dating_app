@@ -14,13 +14,13 @@ class ProfileSetupPage extends StatefulWidget {
   State<ProfileSetupPage> createState() => _ProfileSetupPageState();
 }
 
-class _TagAlignData {
-  final String text;
-  final double dx; // -1 ~ 1
-  final double dy; // -1 ~ 1
-  final Color borderColor;
-  const _TagAlignData(this.text, this.dx, this.dy, this.borderColor);
-}
+// class _TagAlignData {
+//   final String text;
+//   final double dx; // -1 ~ 1
+//   final double dy; // -1 ~ 1
+//   final Color borderColor;
+//   const _TagAlignData(this.text, this.dx, this.dy, this.borderColor);
+// }
 
 class CloudPainter extends CustomPainter {
   final Color fillColor;
@@ -188,16 +188,26 @@ class _CloudButtonPaintedState extends State<CloudButtonPainted>
 class _ProfileSetupPageState extends State<ProfileSetupPage> {
   File? _selectedImage;
 
-  final List<_TagAlignData> tags = [
-    _TagAlignData('騎貢丸上學', 0.0, -0.4, Color(0xFF56A3E7)),
-    _TagAlignData('需要新鮮的肝', -0.9, -0.25, Color(0xFF9BC8F0)),
-    _TagAlignData('咖啡因成癮', 0.0, -0.1, Color(0xFF5FBCC7)),
-    _TagAlignData('風好大', 0.9, -0.25, Color(0xFF1B578B)),
-    _TagAlignData('活動咖', -1.2, 0.0, Color(0xFF5585B0)),
-    _TagAlignData('美食探險家', 0.05, 0.18, Color(0xFF5E7FC7)),
-    _TagAlignData('哥布林', 1.1, 0.05, Color(0xFF2449B7)),
-    _TagAlignData('酒精中毒', -1.0, 0.38, Color(0xFF5D84A6)),
-    _TagAlignData('愛睡覺', 1.1, 0.35, Color(0xFF4D6FB7)),
+  // final List<_TagAlignData> tags = [
+  //   _TagAlignData('騎貢丸上學', 0.0, -0.4, Color(0xFF56A3E7)),
+  //   _TagAlignData('需要新鮮的肝', -0.9, -0.25, Color(0xFF9BC8F0)),
+  //   _TagAlignData('咖啡因成癮', 0.0, -0.1, Color(0xFF5FBCC7)),
+  //   _TagAlignData('風好大', 0.9, -0.25, Color(0xFF1B578B)),
+  //   _TagAlignData('活動咖', -1.2, 0.0, Color(0xFF5585B0)),
+  //   _TagAlignData('美食探險家', 0.05, 0.18, Color(0xFF5E7FC7)),
+  //   _TagAlignData('哥布林', 1.1, 0.05, Color(0xFF2449B7)),
+  //   _TagAlignData('酒精中毒', -1.0, 0.38, Color(0xFF5D84A6)),
+  //   _TagAlignData('愛睡覺', 1.1, 0.35, Color(0xFF4D6FB7)),
+  // ];
+  final List<String> tags = [
+    '美食探險家', '咖啡因成癮', '酒精中毒', '需要\n新鮮的肝',
+    '騎貢丸上學', '活動咖', '哥布林', '風好大',
+    '愛睡覺', '吃辣王者', '我就爛', '甜食愛好者',
+    '運動身體好', '超怕蟲', '貓派', '狗派',
+    '拖延症末期', '夜貓子', '笑點低', '愛聽音樂',
+    '慢熟', '追劇', '宅宅', '傘被偷',
+    '喜歡散步', '教授\n不要當我', '永遠在餓', '忘東忘西',
+    '喜歡曬太陽', '文青', '能躺就躺', '鳩咪',
   ];
 
   final List<String> allTags = [
@@ -235,24 +245,40 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
 
   final nameController = TextEditingController();
   final birthdayController = TextEditingController();
+  final heightController = TextEditingController();
   String? gender;
   Set<String> matchgender = {};
   String? genderDetail; // 記得刪掉
   String? orientation;
-  final otherOrientationController = TextEditingController();
+  final TextEditingController selfIntroController = TextEditingController();
 
   Set<String> selectedTags = {};
+  Set<String> selectedHabits = {};
   String? selectedMBTI;
   String? selectedZodiac;
+  String? selectededucationLevels;
+  String? selectedDepartment;
   String? _photoUrl;
   bool _isUploadingPhoto = false;
   Set<String> matchSchools = {};
-      
+  bool? matchSameDepartment;
+
   final TextEditingController customSportController = TextEditingController();
   final TextEditingController customPetController = TextEditingController();
 
-  final List<String> sports = ['籃球', '排球', '足球', '桌球', '羽球'];
-  final List<String> pets = ['狗', '貓', '小鳥', '爬蟲類', '兔子'];
+  final isInterestsExpanded = {
+    '運動': false,
+    '寵物': false,
+    '電影': false,
+  };
+  final List<String> mainInterests = [
+    '運動', '寵物', '美妝', '動漫', '寫作', '電影', '舞台劇', '逛展覽',
+  ];
+  final interestsSubtags = {
+    '運動': ['排球', '羽球', '桌球', '騎腳踏車', '籃球', '足球', '游泳', '健身', '跑步'],
+    '寵物': ['狗派', '貓派'],
+    '電影': ['愛情', '科幻', '動作', '喜劇', '恐怖'],
+  };
   final List<String> mbtiList = [
     'ISTJ', 'ISFJ', 'INFJ', 'INTJ',
     'ISTP', 'ISFP', 'INFP', 'INTP',
@@ -263,8 +289,19 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     '牡羊座', '金牛座', '雙子座', '巨蟹座', '獅子座', '處女座',
     '天秤座', '天蠍座', '射手座', '摩羯座', '水瓶座', '雙魚座',
   ];
+  final List<String> educationLevelsList = [
+    '大一', '大二', '大三', '大四', '碩士', '博士', '畢業',
+  ];
+  final List<String> departmentList = [
+    '電機系', '資工系', '化工系', '機械系', '生醫系', '材料系',
+    '物理系', '化學系', '數學系', '生物系', '心理系', '社會系',
+  ];
 
-  void _nextPage() async {
+
+  void _nextPage() async {    
+    // ✅ 延遲一點點再 unfocus，避免鍵盤閃爍
+    FocusScope.of(context).unfocus();
+    
     if (_currentPage == 0) {
       final name = nameController.text.trim();
       if (name.isEmpty) return;
@@ -281,10 +318,27 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       );
       if (confirmed != true) return;
     }
+    else if (_currentPage == 1) {
+      if (matchSchools.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('請至少選擇一所學校')),
+        );
+        return;
+      }
+    }
+    else if (_currentPage == 2) {
+      if (selectedTags.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('請至少選擇一個標籤')),
+        );
+        return;
+      }
+    }
 
-    if (_currentPage < 2) {
+    if (_currentPage < 3) {
       setState(() => _currentPage++);
-      _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      await _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      FocusScope.of(context).unfocus(); // 換頁的時候關鍵盤(避免更改到前一頁的內容)
     } else {
       _submit();
     }
@@ -314,15 +368,17 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     final profileData = {
       'name': nameController.text.trim(),
       'matchSchools': matchSchools.toList(),
-      // 'birthday': birthdayController.text.trim(),
       'gender': gender,
       'matchGender': matchgender.toList(),
-      // 'orientation': orientation == '未列出'
-      //     ? otherOrientationController.text.trim()
-      //     : orientation,
       'tags': selectedTags.toList(),
-      // 'mbti': selectedMBTI,
-      // 'zodiac': selectedZodiac,
+      'habits': selectedHabits.toList(),
+      'mbti': selectedMBTI,
+      'zodiac': selectedZodiac,
+      'birthday': birthdayController.text.trim(),
+      'height': heightController.text.trim(),
+      'educationLevels': selectededucationLevels,
+      'department': selectedDepartment,
+      'matchSameDepartment': matchSameDepartment,
       'school': school,
       'email': user.email,
       'photoUrl': _photoUrl, // ✅ 加這行
@@ -344,13 +400,34 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   }
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    nameController.dispose();
+    birthdayController.dispose();
+    selfIntroController.dispose();
+    customSportController.dispose();
+    customPetController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // 背景圖片對應表
+    final backgroundMap = {
+      0: 'assets/profile_setup_background.png',
+      1: 'assets/school_page_background.png',
+      // 2: 'assets/tags_background.png',
+    };
+
+    final bg = backgroundMap[_currentPage];
+
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Container(
         decoration: BoxDecoration(
           // 根據頁面決定背景顏色或漸層
           color: _currentPage == 2
-              ? const Color(0xFFCEEAFF)
+              ? const Color(0xFFD3F8F3FC)
               : null, // 若是漸層則不能同時設 color
           gradient: _currentPage == 0
               ? const LinearGradient(
@@ -363,23 +440,13 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                 )
               : null,
         ),
-        // child: SafeArea(
+        child: SafeArea(
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if(_currentPage == 0)  
+              if (bg != null)
                 Image.asset(
-                  'assets/profile_setup_background.png',
-                  fit: BoxFit.cover,
-                ),
-              if(_currentPage == 1)
-                Image.asset(
-                  'assets/school_page_background.png',
-                  fit: BoxFit.cover,
-                ),
-              if(_currentPage == 2)
-                Image.asset(
-                  'assets/tags_background.png',
+                  bg,
                   fit: BoxFit.cover,
                 ),
               Container(
@@ -389,21 +456,25 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
               Column(
                 children: [
                   Expanded(
-                    child: PageView(
-                      controller: _pageController,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        // _buildNamePage(),
-                        _buildBasicInfoPage(),
-                        _buildMatchSchoolPage(),
-                        _buildTagsPage(),
-                        // _buildPhotoUploadPage(),
-                        // _buildBirthdayPage(),
-                        // _buildGenderPage(),
-                        // _buildOrientationPage(),
-                        // _buildTagPage(),
-                        // _buildManyTagPage(),
-                      ],
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque, // 讓空白處也能偵測點擊
+                      onTap: () => FocusScope.of(context).unfocus(),
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          // _buildNamePage(),
+                          _buildBasicInfoPage(),
+                          _buildMatchSchoolPage(),
+                          _buildTagsPage(),
+                          // _buildPhotoUploadPage(),
+                          // _buildBirthdayPage(),
+                          // _buildGenderPage(),
+                          // _buildOrientationPage(),
+                          _buildHabitsPage(),
+                          // _buildManyTagPage(),
+                        ],
+                      ),
                     ),
                   ),
                   Row(
@@ -413,7 +484,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                         ElevatedButton(onPressed: _prevPage, child: const Text('上一步')),
                       ElevatedButton(
                         onPressed: _nextPage,
-                        child: Text(_currentPage == 2 ? '完成' : '下一步'),
+                        child: Text(_currentPage == 3 ? '完成' : '下一步'),
                       ),
                     ],
                   ),
@@ -421,333 +492,388 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
               ),
             ],
           ),
-        // ),
+        ),
       ),
     );
   }
 
-Widget _buildMatchSchoolPage() {
-  return Stack(
-    fit: StackFit.expand,
-    children: [
-      // Container(
-      //   color: Colors.black.withOpacity(0.05),
-      // ),
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                children: [
-                  Text(
-                    '選擇想要配對的學校',
-                    style: TextStyle(
-                      fontFamily: 'Kiwi Maru',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 25,
-                      height: 1.0,
-                      letterSpacing: 0.0,
-                      foreground: Paint()
-                        ..style = PaintingStyle.stroke
-                        ..strokeWidth = 4
-                        ..color = Colors.white,
-                    ),
-                  ),
-                  Text(
-                    '選擇想要配對的學校',
-                    style: TextStyle(
-                      fontFamily: 'Kiwi Maru',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 25,
-                      height: 1.0,
-                      letterSpacing: 0.0,
-                      color: Color(0xFF5A4A3C),
-                      shadows: [
-                        Shadow(
-                          offset: Offset(2, 2),
-                          blurRadius: 2,
-                          color: Color(0x80000000),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-              Stack(
-                children: [
-                  Text(
-                    '（可複選）',
-                    style: TextStyle(
-                      fontFamily: 'Kiwi Maru',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 25,
-                      height: 1.0,
-                      letterSpacing: 0.0,
-                      foreground: Paint()
-                        ..style = PaintingStyle.stroke
-                        ..strokeWidth = 4
-                        ..color = Colors.white,
-                    ),
-                  ),
-                  Text(
-                    '（可複選）',
-                    style: TextStyle(
-                      fontFamily: 'Kiwi Maru',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 25,
-                      height: 1.0,
-                      letterSpacing: 0.0,
-                      color: Color(0xFF5A4A3C),
-                      shadows: [
-                        Shadow(
-                          offset: Offset(2, 2),
-                          blurRadius: 2,
-                          color: Color(0x80000000),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 48),
-              _buildSchoolChoice('國立陽明交通大學', 'nycu'),
-              const SizedBox(height: 20),
-              _buildSchoolChoice('國立清華大學', 'nthu'),
-              const SizedBox(height: 40),
-             
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
-Widget _buildSchoolChoice(String label, String code) {
-  final isSelected = matchSchools.contains(code);
-  return ElevatedButton(
-    onPressed: () {
-      setState(() {
-        if (isSelected) {
-          matchSchools.remove(code);
-        } else {
-          matchSchools.add(code);
-        }
-      });
-    },
-    style: ElevatedButton.styleFrom(
-      side: BorderSide(
-        color: isSelected ? Colors.orange : Color(0xFF89C9C2),
-        width: 3,
-      ),
-      backgroundColor: isSelected ? Colors.orange.shade100 : Color(0xFFFEECEC),
-      foregroundColor: Color(0xFF5A4A3C),
-      minimumSize: const Size(double.infinity, 60),
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildMatchSchoolPage() {
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        if (isSelected)
-          const Icon(Icons.check_circle, color: Colors.orange),
-        if (isSelected) const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Kiwi Maru',
-            fontWeight: FontWeight.w400,
-            fontSize: 18,
-            height: 1.0,
-            letterSpacing: 0.0,
-            color: Color(0xFF5A4A3C),
+        // Container(
+        //   color: Colors.black.withOpacity(0.05),
+        // ),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  children: [
+                    Text(
+                      '選擇想要配對的學校',
+                      style: TextStyle(
+                        fontFamily: 'Kiwi Maru',
+                        fontWeight: FontWeight.w400,
+                        fontSize: 25,
+                        height: 1.0,
+                        letterSpacing: 0.0,
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 4
+                          ..color = Colors.white,
+                      ),
+                    ),
+                    Text(
+                      '選擇想要配對的學校',
+                      style: TextStyle(
+                        fontFamily: 'Kiwi Maru',
+                        fontWeight: FontWeight.w400,
+                        fontSize: 25,
+                        height: 1.0,
+                        letterSpacing: 0.0,
+                        color: Color(0xFF5A4A3C),
+                        shadows: [
+                          Shadow(
+                            offset: Offset(2, 2),
+                            blurRadius: 2,
+                            color: Color(0x80000000),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                Stack(
+                  children: [
+                    Text(
+                      '（可複選）',
+                      style: TextStyle(
+                        fontFamily: 'Kiwi Maru',
+                        fontWeight: FontWeight.w400,
+                        fontSize: 25,
+                        height: 1.0,
+                        letterSpacing: 0.0,
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 4
+                          ..color = Colors.white,
+                      ),
+                    ),
+                    Text(
+                      '（可複選）',
+                      style: TextStyle(
+                        fontFamily: 'Kiwi Maru',
+                        fontWeight: FontWeight.w400,
+                        fontSize: 25,
+                        height: 1.0,
+                        letterSpacing: 0.0,
+                        color: Color(0xFF5A4A3C),
+                        shadows: [
+                          Shadow(
+                            offset: Offset(2, 2),
+                            blurRadius: 2,
+                            color: Color(0x80000000),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 48),
+                _buildSchoolChoice('國立陽明交通大學', 'nycu'),
+                const SizedBox(height: 20),
+                _buildSchoolChoice('國立清華大學', 'nthu'),
+                const SizedBox(height: 40),
+              
+              ],
+            ),
           ),
         ),
       ],
-    ),
-  );
-}
+    );
+  }
 
-  Widget _buildBasicInfoPage() => Padding(
-      padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            GestureDetector(
-              onTap: _pickImage,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 200, // 直徑 = 2 * radius
-                    height: 200,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Color(0xFF1B578B), width: 4), // 深藍邊框
-                    ),
-                    child: CircleAvatar(
-                      radius: 100,
-                      backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : null,
-                      child: _selectedImage == null
-                          ? const Text('選擇要上傳的照片')
-                          : null,
-                    ),
-                  ),
-                  if (_isUploadingPhoto)
-                    const CircularProgressIndicator(),
-                ],
-              ),
+  Widget _buildSchoolChoice(String label, String code) {
+    final isSelected = matchSchools.contains(code);
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          if (isSelected) {
+            matchSchools.remove(code);
+          } else {
+            matchSchools.add(code);
+          }
+        });
+      },
+      style: ElevatedButton.styleFrom(
+        side: BorderSide(
+          color: isSelected ? Colors.orange : Color(0xFF89C9C2),
+          width: 3,
+        ),
+        backgroundColor: isSelected ? Colors.orange.shade100 : Color(0xFFFEECEC),
+        foregroundColor: Color(0xFF5A4A3C),
+        minimumSize: const Size(double.infinity, 60),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isSelected)
+            const Icon(Icons.check_circle, color: Colors.orange),
+          if (isSelected) const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Kiwi Maru',
+              fontWeight: FontWeight.w400,
+              fontSize: 18,
+              height: 1.0,
+              letterSpacing: 0.0,
+              color: Color(0xFF5A4A3C),
             ),
-            const SizedBox(height: 16),
-            Text(
-              '1. 別人要怎麼稱呼尼？',
-              style: TextStyle(
-                color: Color(0xFF1B578B),
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBasicInfoPage() => SingleChildScrollView(
+    // reverse: true, // 讓畫面滑動到輸入欄位
+    // padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        SizedBox(height: 120),
+        GestureDetector(
+          onTap: _pickImage,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 200, // 直徑 = 2 * radius
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Color(0xFF1B578B), width: 4), // 深藍邊框
+                ),
+                child: CircleAvatar(
+                  radius: 100,
+                  backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : null,
+                  child: _selectedImage == null
+                      ? const Text('選擇要上傳的照片')
+                      : null,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.center,
-              child: SizedBox(
-                width: 280, // 控制寬度
-                child: TextField(
-                  controller: nameController,
-                  textAlign: TextAlign.center,
-                  decoration: InputDecoration(
-                    hintText: '輸入名字',
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(40),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(40),
-                      borderSide: const BorderSide(color: Color(0xFF89C9C2), width: 3),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(40),
-                      borderSide: const BorderSide(color: const Color(0xFF1B578B), width: 3),
-                    ),
-                  ),
+              if (_isUploadingPhoto)
+                const CircularProgressIndicator(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '1. 別人要怎麼稱呼尼？',
+          style: TextStyle(
+            color: Color(0xFF1B578B),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: 280, // 控制寬度
+            child: TextField(
+              autofocus: false,
+              controller: nameController,
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                hintText: '輸入名字',
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(40),
+                  borderSide: const BorderSide(color: Colors.grey),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(40),
+                  borderSide: const BorderSide(color: Color(0xFF89C9C2), width: 3),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(40),
+                  borderSide: const BorderSide(color: const Color(0xFF1B578B), width: 3),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              '2. 選擇尼的生理性別',
-              style: TextStyle(
-                color: const Color(0xFF1B578B),
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              // crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ...['男性', '女性'].map((g) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: OutlinedButton(
-                    onPressed: () => setState(() {
-                      gender = g;
-                    }),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: gender == g ? const Color.fromARGB(255, 142, 195, 241) : null,
-                      minimumSize: Size(120, 50),
-                      side: BorderSide(
-                        color: gender == g ? const Color(0xFF1B578B) : Color(0xFF89C9C2),
-                        width: 3,
-                      ),
-                    ),
-                    child: Text(g),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '2. 選擇尼的生理性別',
+          style: TextStyle(
+            color: const Color(0xFF1B578B),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          // crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            ...['男性', '女性'].map((g) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  gender = g;
+                }),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: gender == g ? const Color.fromARGB(255, 142, 195, 241) : null,
+                  minimumSize: Size(120, 50),
+                  side: BorderSide(
+                    color: gender == g ? const Color(0xFF1B578B) : Color(0xFF89C9C2),
+                    width: 3,
                   ),
-                )).toList(),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '3. 選擇想配對的生理性別',
-              style: TextStyle(
-                color: const Color(0xFF1B578B),
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+                ),
+                child: Text(g),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              // crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ...['男性', '女性'].map((g) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: OutlinedButton(
-                    onPressed: () => setState(() {
-                      if (matchgender.contains(g)) {
-                        matchgender.remove(g);
-                      } else {
-                        matchgender.add(g);
-                      }
-                    }),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: matchgender.contains(g) ? const Color.fromARGB(255, 142, 195, 241) : null,
-                      minimumSize: Size(120, 50),
-                      side: BorderSide(
-                        color: matchgender.contains(g) ? const Color(0xFF1B578B) : Color(0xFF89C9C2),
-                        width: 3,
-                      ),
-                    ),
-                    child: Text(g),
-                  ),
-                )).toList(),
-              ],
-            ),
-            const SizedBox(height: 90),
+            )).toList(),
           ],
         ),
-      );
-
-  Widget _buildTagsPage() => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Stack(
+        const SizedBox(height: 16),
+        Text(
+          '3. 選擇想配對的生理性別',
+          style: TextStyle(
+            color: const Color(0xFF1B578B),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          // crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // 中央標題
-            const Positioned(
-              top: 150,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Text(
-                  '選擇個性化標籤',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.brown),
+            ...['男性', '女性'].map((g) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  if (matchgender.contains(g)) {
+                    matchgender.remove(g);
+                  } else {
+                    matchgender.add(g);
+                  }
+                }),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: matchgender.contains(g) ? const Color.fromARGB(255, 142, 195, 241) : null,
+                  minimumSize: Size(120, 50),
+                  side: BorderSide(
+                    color: matchgender.contains(g) ? const Color(0xFF1B578B) : Color(0xFF89C9C2),
+                    width: 3,
+                  ),
                 ),
+                child: Text(g),
               ),
-            ),
-            // 雲朵按鈕們（以中心為原點相對排列）
-            ...tags.map((tag) => Align(
-                  alignment: Alignment(tag.dx, tag.dy),
-                  child: CloudButtonPainted(
-                    text: tag.text,
-                    borderColor: tag.borderColor,
-                    isSelected: selectedTags.contains(tag.text),
-                    onTap: () {
+            )).toList(),
+          ],
+        ),
+        // const SizedBox(height: 90),
+      ],
+    ),
+  );
+
+  Widget _buildTagsPage() => Center(
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 24),
+          const Text(
+            '選擇個性化標籤',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: GridView.count(
+              crossAxisCount: 4, // 每行4個
+              shrinkWrap: true,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.7,
+              physics: const NeverScrollableScrollPhysics(), // 禁止滾動，由外部控制
+              children: tags.map((tag) {
+                final isSelected = selectedTags.contains(tag);
+                return SizedBox(
+                  height: 40,
+                  child: ElevatedButton(
+                    onPressed: () {
                       setState(() {
-                        if (selectedTags.contains(tag.text)) {
-                          selectedTags.remove(tag.text);
+                        if (isSelected) {
+                          selectedTags.remove(tag);
                         } else {
-                          selectedTags.add(tag.text);
+                          selectedTags.add(tag);
                         }
                       });
                     },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isSelected ? Colors.blue : Colors.white,
+                      foregroundColor: isSelected ? Colors.white : Colors.black,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: isSelected ? Colors.blue : Colors.grey),
+                      ),
+                    ),
+                    child: Text(tag, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
                   ),
-                )),
-          ],
-        ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    ),
+        // Stack(
+        //   children: [
+        //     // 中央標題
+        //     const Positioned(
+        //       top: 150,
+        //       left: 0,
+        //       right: 0,
+        //       child: Center(
+        //         child: Text(
+        //           '選擇個性化標籤',
+        //           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.brown),
+        //         ),
+        //       ),
+        //     ),
+        //     // 雲朵按鈕們（以中心為原點相對排列）
+        //     ...tags.map((tag) => Align(
+        //           alignment: Alignment(tag.dx, tag.dy),
+        //           child: CloudButtonPainted(
+        //             text: tag.text,
+        //             borderColor: tag.borderColor,
+        //             isSelected: selectedTags.contains(tag.text),
+        //             onTap: () {
+        //               setState(() {
+        //                 if (selectedTags.contains(tag.text)) {
+        //                   selectedTags.remove(tag.text);
+        //                 } else {
+        //                   selectedTags.add(tag.text);
+        //                 }
+        //               });
+        //             },
+        //           ),
+        //         )),
+        //   ],
+        // ),
   );
 
   Future<void> _pickImage() async {
@@ -794,6 +920,239 @@ Widget _buildSchoolChoice(String label, String code) {
         SnackBar(content: Text('照片上傳失敗：$e')),
       );
     }
+  }
+
+  Widget _buildHabitsPage() => SingleChildScrollView(
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('興趣與標籤', style: TextStyle(fontSize: 20)),
+        const SizedBox(height: 16),
+        const Text('興趣'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final tag in mainInterests) ...[
+              _buildInterestChip(tag),
+              if (isInterestsExpanded.containsKey(tag))  // 如果點了有子選項的，插入子項按鈕（較小，框起來）
+                if (isInterestsExpanded[tag] == true)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color.fromARGB(51, 224, 201, 119), // 底色
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: interestsSubtags[tag]!.map((sub) {
+                        return ChoiceChip(
+                          label: Text(sub, style: const TextStyle(fontSize: 13)),
+                          selected: selectedHabits.contains(sub),
+                          onSelected: (selected) {
+                            setState(() {
+                              selected ? selectedHabits.add(sub) : selectedHabits.remove(sub);
+                            });
+                          },
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+            ]
+          ],
+        ),
+
+        const SizedBox(height: 24),
+        const Text('MBTI'),
+        const SizedBox(height: 8),
+        for(int i = 0; i < 4; i++)
+          Wrap(
+            spacing: 8,
+            children: [
+              for(int j = 0; j < 4; j++)
+                ChoiceChip(
+                  label: Text('${mbtiList[i * 4 + j]}'),
+                  selected: selectedMBTI == mbtiList[i * 4 + j],
+                  onSelected: (_) => setState(() => selectedMBTI = mbtiList[i * 4 + j]),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+            ]
+          ),
+
+        const SizedBox(height: 24),
+        const Text('星座'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: zodiacList.map((sign) => ChoiceChip(
+            label: Text(sign),
+            selected: selectedZodiac == sign,
+            onSelected: (_) => setState(() => selectedZodiac = sign),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          )).toList(),
+        ),
+        
+        const SizedBox(height: 24),
+        const Text('生日'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: birthdayController,
+          readOnly: true,
+          onTap: () async {
+            final now = DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime(now.year - 20),
+              firstDate: DateTime(1900),
+              lastDate: now,
+            );
+            if (picked != null) {
+              birthdayController.text = "${picked.year}/${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}";
+            }
+          },
+          decoration: const InputDecoration(hintText: '請選擇生日'),
+        ),
+
+        const SizedBox(height: 24),
+        const Text('身高'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: heightController,
+          textAlign: TextAlign.center,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: '請輸入你的身高（公分）',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            filled: true,
+            fillColor: Colors.grey[100],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+        const Text('在學狀態'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: educationLevelsList.map((status) => ChoiceChip(
+            label: Text(status),
+            selected: selectededucationLevels == status,
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  selectededucationLevels = status;
+                } else {
+                  selectededucationLevels = null;
+                }
+              });
+            },
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          )).toList(),
+        ),
+
+        const SizedBox(height: 24),
+        const Text('系所'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: departmentList.map((department) => ChoiceChip(
+            label: Text(department),
+            selected: selectedDepartment == department,
+            onSelected: (_) => setState(() => selectedDepartment = department),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          )).toList(),
+        ),
+
+        const SizedBox(height: 24),
+        const Text('是否推薦同系所的人'),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            OutlinedButton(
+              onPressed: () => setState(() => matchSameDepartment = true),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: matchSameDepartment == true ? Colors.orange.shade100 : null,
+                side: BorderSide(
+                  color: matchSameDepartment == true ? Colors.orange : Color(0xFF89C9C2),
+                  width: 3,
+                ),
+              ),
+              child: const Text('是'),
+            ),
+            OutlinedButton(
+              onPressed: () => setState(() => matchSameDepartment = false),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: matchSameDepartment == false ? Colors.orange.shade100 : null,
+                side: BorderSide(
+                  color: matchSameDepartment == false ? Colors.orange : Color(0xFF89C9C2),
+                  width: 3,
+                ),
+              ),
+              child: const Text('否'),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+        const Text('自我介紹'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: selfIntroController,
+          maxLines: null,
+          maxLength: 200,
+          decoration: InputDecoration(
+            hintText: '簡單介紹一下你自己（最多200字）',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            filled: true,
+            fillColor: Colors.grey[100],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  // 分出來的興趣按鈕建構器
+  Widget _buildInterestChip(String tag) {
+    final selected = selectedHabits.contains(tag);
+    return ChoiceChip(
+      label: Text(tag),
+      selected: selected,
+      onSelected: (selected) {
+        setState(() {
+          selected ? selectedHabits.add(tag) : selectedHabits.remove(tag);
+          if (isInterestsExpanded.containsKey(tag)) {
+            isInterestsExpanded[tag] = !isInterestsExpanded[tag]!;
+            if (!selected) {
+              for(final subtag in interestsSubtags[tag] ?? []) {
+                if (selectedHabits.contains(subtag)) {
+                  selectedHabits.remove(subtag);
+                }
+              }
+            }
+          }
+        });
+      },
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
   }
 
 
@@ -934,108 +1293,6 @@ Widget _buildSchoolChoice(String label, String code) {
   //               controller: otherOrientationController,
   //               decoration: const InputDecoration(hintText: '請輸入你的性向'),
   //             ),
-  //         ],
-  //       ),
-  //     );
-
-  // Widget _buildTagPage() => SingleChildScrollView(
-  //       padding: const EdgeInsets.all(16),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           const Text('興趣與標籤', style: TextStyle(fontSize: 20)),
-  //           const SizedBox(height: 12),
-  //           const Text('運動'),
-  //           Wrap(
-  //             spacing: 8,
-  //             children: [
-  //               for (final tag in sports)
-  //                 ChoiceChip(
-  //                   label: Text(tag),
-  //                   selected: selectedTags.contains(tag),
-  //                   onSelected: (selected) {
-  //                     setState(() {
-  //                       selected ? selectedTags.add(tag) : selectedTags.remove(tag);
-  //                     });
-  //                   },
-  //                 ),
-  //             ],
-  //           ),
-  //           TextField(
-  //             controller: customSportController,
-  //             decoration: InputDecoration(
-  //               labelText: '新增其他運動',
-  //               suffixIcon: IconButton(
-  //                 icon: const Icon(Icons.add),
-  //                 onPressed: () {
-  //                   final text = customSportController.text.trim();
-  //                   if (text.isNotEmpty) {
-  //                     setState(() {
-  //                       selectedTags.add(text);
-  //                       customSportController.clear();
-  //                       sports.add(text);
-  //                     });
-  //                   }
-  //                 },
-  //               ),
-  //             ),
-  //           ),
-  //           const SizedBox(height: 16),
-  //           const Text('寵物'),
-  //           Wrap(
-  //             spacing: 8,
-  //             children: [
-  //               for (final tag in pets)
-  //                 ChoiceChip(
-  //                   label: Text(tag),
-  //                   selected: selectedTags.contains(tag),
-  //                   onSelected: (selected) {
-  //                     setState(() {
-  //                       selected ? selectedTags.add(tag) : selectedTags.remove(tag);
-  //                     });
-  //                   },
-  //                 ),
-  //             ],
-  //           ),
-  //           TextField(
-  //             controller: customPetController,
-  //             decoration: InputDecoration(
-  //               labelText: '新增其他寵物',
-  //               suffixIcon: IconButton(
-  //                 icon: const Icon(Icons.add),
-  //                 onPressed: () {
-  //                   final text = customPetController.text.trim();
-  //                   if (text.isNotEmpty) {
-  //                     setState(() {
-  //                       selectedTags.add(text);
-  //                       customPetController.clear();
-  //                       pets.add(text);
-  //                     });
-  //                   }
-  //                 },
-  //               ),
-  //             ),
-  //           ),
-  //           const SizedBox(height: 16),
-  //           const Text('MBTI'),
-  //           Wrap(
-  //             spacing: 8,
-  //             children: mbtiList.map((type) => ChoiceChip(
-  //               label: Text(type),
-  //               selected: selectedMBTI == type,
-  //               onSelected: (_) => setState(() => selectedMBTI = type),
-  //             )).toList(),
-  //           ),
-  //           const SizedBox(height: 16),
-  //           const Text('星座'),
-  //           Wrap(
-  //             spacing: 8,
-  //             children: zodiacList.map((sign) => ChoiceChip(
-  //               label: Text(sign),
-  //               selected: selectedZodiac == sign,
-  //               onSelected: (_) => setState(() => selectedZodiac = sign),
-  //             )).toList(),
-  //           ),
   //         ],
   //       ),
   //     );

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart'; // for DateFormat
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MatchPage extends StatefulWidget {
   const MatchPage({super.key});
@@ -96,20 +95,26 @@ Future<void> _loadUsers() async {
       .get();
   final pushedIds = pushedSnapshot.docs.map((doc) => doc.id).toSet();
 
-  // 2. 取得自己的配對條件與 likedTagCount
+  // 2. 取得自己的配對條件與 likedTagCount 及 likedHabitCount
   final currentUserDoc = await FirebaseFirestore.instance
       .collection('users')
       .doc(currentUserId)
       .get();
   final currentUserData = currentUserDoc.data() ?? {};
+  final currentUserDepartment = currentUserData['department'] ?? '';
+  final matchSameDepartment = currentUserData['matchSameDepartment'] ?? false;
   final matchGender = List<String>.from(currentUserData['matchGender'] ?? []);
   final matchSchools = List<String>.from(currentUserData['matchSchools'] ?? []);
   final likedTagCount = Map<String, int>.from(currentUserData['likedTagCount'] ?? {});
+  final likedHabitCount = Map<String, int>.from(currentUserData['likedHabitCount'] ?? {});
 
-  // 計算 top 3 tag
+  // 計算 top 3 tag 及 top 3 habit
   final sortedTags = likedTagCount.keys.toList()
     ..sort((a, b) => likedTagCount[b]!.compareTo(likedTagCount[a]!));
   final topTags = sortedTags.take(3).toList();
+  final sortedHabits = likedHabitCount.keys.toList()
+    ..sort((a, b) => likedHabitCount[b]!.compareTo(likedHabitCount[a]!));
+  final topHabits = sortedHabits.take(3).toList();
 
   // 3. 對你按過愛心的人
   final likedMeSnapshot = await FirebaseFirestore.instance
@@ -131,37 +136,45 @@ Future<void> _loadUsers() async {
   }
   final likedMeUserIds = likedMeUsers.map((doc) => doc.id).toSet();
 
-  // 4. 查詢一次所有候選人（符合性別且未被推播）
+  // 4. 查詢一次所有候選人（符合性別、學校、系所且未被推播）
   final allCandidateSnapshot = await FirebaseFirestore.instance
       .collection('users')
       .where('gender', whereIn: matchGender)
+      .where('school', whereIn: matchSchools)
       .get();
-  final allCandidateDocs = allCandidateSnapshot.docs
-      .where((doc) =>
-          doc.id != currentUserId &&
-          !pushedIds.contains(doc.id))
-      .toList();
+  final allCandidateDocs = allCandidateSnapshot.docs.where((doc) {
+    final isSelf = doc.id == currentUserId;
+    final isPushed = pushedIds.contains(doc.id);
+    final isSameDepartment = doc['department'] == currentUserDepartment;
 
-  // 5. 從中挑出 tag 傾向者
-  final tagUsers = allCandidateDocs
+    if (matchSameDepartment == false && isSameDepartment) {
+      return false; // 排除同系所
+    }
+
+    return !isSelf && !isPushed;
+  }).toList();
+
+  // 5. 從中挑出 tag 及 habit 傾向者
+  final filteredUsers = allCandidateDocs
       .where((doc) =>
           !likedMeUserIds.contains(doc.id) &&
-          (doc['tags'] as List).any((tag) => topTags.contains(tag)))
+          ((doc['tags'] as List).any((tag) => topTags.contains(tag)) ||
+           (doc['habits'] as List).any((habit) => topHabits.contains(habit))))
       .take(15)
       .toList();
-  final tagUserIds = tagUsers.map((doc) => doc.id).toSet();
+  final filteredUserIds = filteredUsers.map((doc) => doc.id).toSet();
 
   // 6. 從剩下的中隨機選擇
   final randomUsers = allCandidateDocs
       .where((doc) =>
           !likedMeUserIds.contains(doc.id) &&
-          !tagUserIds.contains(doc.id))
+          !filteredUserIds.contains(doc.id))
       .toList()
     ..shuffle();
   final randomSelection = randomUsers.take(5).toList();
 
   // 7. 合併推薦名單
-  final recommendedUsers = [...likedMeUsers, ...tagUsers, ...randomSelection];
+  final recommendedUsers = [...likedMeUsers, ...filteredUsers, ...randomSelection];
 
   setState(() {
     users = recommendedUsers;
@@ -233,22 +246,31 @@ Future<void> _loadUsers() async {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // 2. 取得被按愛心者的 tags
+    // 2. 取得被按愛心者的 tags 及 habits
     final targetUserDoc =
         await firestore.collection('users').doc(targetUserId).get();
     final targetTags = List<String>.from(targetUserDoc['tags'] ?? []);
+    final targetHabits = List<String>.from(targetUserDoc['habits'] ?? []);
 
-    // 3. 更新當前使用者的 likedTagCount 統計
+    // 3. 更新當前使用者的 likedTagCount 及 likedHabitCount 統計
     final currentUserRef = firestore.collection('users').doc(currentUserId);
     final currentUserDoc = await currentUserRef.get();
     final currentLikedTagCount =
         Map<String, dynamic>.from(currentUserDoc.data()?['likedTagCount'] ?? {});
+    final currentLikedHabitCount =
+        Map<String, dynamic>.from(currentUserDoc.data()?['likedHabitCount'] ?? {});
 
     for (final tag in targetTags) {
       currentLikedTagCount[tag] = (currentLikedTagCount[tag] ?? 0) + 1;
     }
+    for (final habit in targetHabits) {
+      currentLikedHabitCount[habit] = (currentLikedHabitCount[habit] ?? 0) + 1;
+    }
 
-    await currentUserRef.update({'likedTagCount': currentLikedTagCount});
+    await currentUserRef.update({
+      'likedTagCount': currentLikedTagCount,
+      'likedHabitCount': currentLikedHabitCount,
+    });
 
     // 4. 檢查是否互相按愛心（已存在對方的 like）
     final reverseLike = await firestore
