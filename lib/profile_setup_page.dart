@@ -416,7 +416,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     final backgroundMap = {
       0: 'assets/profile_setup_background.png',
       1: 'assets/school_page_background.png',
-      // 2: 'assets/tags_background.png',
+      2: 'assets/tags_background.png',
     };
 
     final bg = backgroundMap[_currentPage];
@@ -426,19 +426,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       body: Container(
         decoration: BoxDecoration(
           // 根據頁面決定背景顏色或漸層
-          color: _currentPage == 2
-              ? const Color(0xFFD3F8F3FC)
-              : null, // 若是漸層則不能同時設 color
-          gradient: _currentPage == 0
-              ? const LinearGradient(
-                  colors: [
-                    Color(0xFF9DD6FF),
-                    Color(0xFFFFF3C5),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                )
-              : null,
+          color: _currentPage == 0 ? const Color(0xFCD3F8F3) :
+                 _currentPage == 1 ? const Color(0xFFF6F4F2) :
+                 _currentPage == 2 ? const Color(0xFFD3F8F3FC) : null, // 若是漸層則不能同時設 color
         ),
         child: SafeArea(
           child: Stack(
@@ -792,7 +782,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: 120),
           const Text(
             '選擇個性化標籤',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -803,7 +793,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
             child: GridView.count(
               crossAxisCount: 4, // 每行4個
               shrinkWrap: true,
-              mainAxisSpacing: 16,
+              mainAxisSpacing: 12,
               crossAxisSpacing: 16,
               childAspectRatio: 1.7,
               physics: const NeverScrollableScrollPhysics(), // 禁止滾動，由外部控制
