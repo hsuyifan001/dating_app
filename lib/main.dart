@@ -37,6 +37,7 @@ class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFFFFE3),
       body: Stack(
         fit: StackFit.expand, // 讓背景圖自動鋪滿
         children: [
@@ -58,6 +59,10 @@ class WelcomePage extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min, // 垂直置中
                 children: [
+                  Image.asset(
+                    'assets/icon.png',
+                    width: 220,
+                  ),
                   Stack(
                     children: [
                       // 外框字（白色描邊）
@@ -101,6 +106,7 @@ class WelcomePage extends StatelessWidget {
                       side: const BorderSide(color: Color(0xFF89C9C2), width: 2),
                     ),
                   ),
+                  const SizedBox(height: 200),
                 ],
               ),
             ),
