@@ -283,11 +283,34 @@ Future<void> _loadUsers() async {
           ? '${currentUserId}_$targetUserId'
           : '${targetUserId}_$currentUserId';
 
-      await firestore.collection('matches').doc(matchId).set({
+      final timestamp = FieldValue.serverTimestamp();
+
+      /*await firestore.collection('matches').doc(matchId).set({
         'user1': currentUserId,
         'user2': targetUserId,
         'matchedAt': FieldValue.serverTimestamp(),
-      });
+      });*/
+
+      await Future.wait([
+        firestore
+            .collection('users')
+            .doc(currentUserId)
+            .collection('matches')
+            .doc(targetUserId)
+            .set({
+          'matchedUserId': targetUserId,
+          'matchedAt': timestamp,
+        }),
+        firestore
+            .collection('users')
+            .doc(targetUserId)
+            .collection('matches')
+            .doc(currentUserId)
+            .set({
+          'matchedUserId': currentUserId,
+          'matchedAt': timestamp,
+        }),
+      ]);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

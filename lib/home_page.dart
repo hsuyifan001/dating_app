@@ -3,6 +3,7 @@ import 'pages/match_page.dart';
 import 'pages/chat_page.dart';
 import 'pages/account_page.dart';
 import 'pages/activity_page.dart';
+import 'pages/story_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,6 +16,7 @@ class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
+    const StoryPage(),
     const ActivityPage(),
     const MatchPage(),
     const ChatPage(),
@@ -36,6 +38,7 @@ class _HomePageState extends State<HomePage> {
           });
         },
         items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: '動態'),
           BottomNavigationBarItem(icon: Icon(Icons.event), label: '活動'),
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: '配對'),
           BottomNavigationBarItem(icon: Icon(Icons.chat), label: '聊天'),

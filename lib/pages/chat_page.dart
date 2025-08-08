@@ -41,53 +41,55 @@ class _ChatPageState extends State<ChatPage> {
   Widget _buildMatchChats() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
           .collection('matches')
-          .where('user1', isEqualTo: currentUser!.uid)
+          .orderBy('matchedAt', descending: true) // 可選：依照時間排序
           .snapshots(),
       builder: (context, snapshot) {
-        final matchDocs1 = snapshot.data?.docs ?? [];
-
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('matches')
-              .where('user2', isEqualTo: currentUser!.uid)
-              .snapshots(),
-          builder: (context, snapshot2) {
-            final matchDocs2 = snapshot2.data?.docs ?? [];
-            final allMatchDocs = [...matchDocs1, ...matchDocs2];
-
-            if (allMatchDocs.isEmpty) {
-              return const Center(child: Text('目前沒有配對對象'));
-            }
-
-            return ListView.builder(
-              itemCount: allMatchDocs.length,
-              itemBuilder: (context, index) {
-                final match = allMatchDocs[index].data() as Map<String, dynamic>;
-                final matchedUserId = match['user1'] == currentUser!.uid ? match['user2'] : match['user1'];
-
-                return FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance.collection('users').doc(matchedUserId).get(),
-                  builder: (context, userSnapshot) {
-                    final userData = userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: userData['photoURL'] != null ? NetworkImage(userData['photoURL']) : null,
-                        child: userData['photoURL'] == null ? const Icon(Icons.person) : null,
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+  
+        final matchDocs = snapshot.data!.docs;
+  
+        if (matchDocs.isEmpty) {
+          return const Center(child: Text('目前沒有配對對象'));
+        }
+  
+        return ListView.builder(
+          itemCount: matchDocs.length,
+          itemBuilder: (context, index) {
+            final matchDoc = matchDocs[index];
+            final matchedUserId = matchDoc.id; // 文件 ID 就是對方 UID
+  
+            return FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance.collection('users').doc(matchedUserId).get(),
+              builder: (context, userSnapshot) {
+                if (!userSnapshot.hasData) {
+                  return const ListTile(title: Text('載入中...'));
+                }
+  
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+  
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage: userData['photoURL'] != null
+                        ? NetworkImage(userData['photoURL'])
+                        : null,
+                    child: userData['photoURL'] == null ? const Icon(Icons.person) : null,
+                  ),
+                  title: Text(userData['name'] ?? '未知使用者'),
+                  subtitle: Text(userData['school'] ?? ''),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatRoomPage(
+                          chatRoomId: _getMatchRoomId(currentUser!.uid, matchedUserId),
+                          title: userData['name'] ?? '',
+                        ),
                       ),
-                      title: Text(userData['name'] ?? '未知使用者'),
-                      subtitle: Text(userData['school'] ?? ''),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatRoomPage(
-                              chatRoomId: _getMatchRoomId(currentUser!.uid, matchedUserId),
-                              title: userData['name'] ?? '',
-                            ),
-                          ),
-                        );
-                      },
                     );
                   },
                 );
@@ -98,6 +100,7 @@ class _ChatPageState extends State<ChatPage> {
       },
     );
   }
+
 
   Widget _buildActivityChats() {
     return StreamBuilder<QuerySnapshot>(
