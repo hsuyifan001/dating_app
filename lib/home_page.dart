@@ -30,19 +30,21 @@ class _HomePageState extends State<HomePage> {
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        selectedItemColor: Colors.pink,
+        selectedItemColor: Color.fromARGB(255, 100, 14, 89),
         unselectedItemColor: Colors.grey,
+        backgroundColor: const Color.fromRGBO(255, 200, 202, 1), // ✅ 設定背景色
+        type: BottomNavigationBarType.fixed, // ✅ 加上這行才能套用背景色
         onTap: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: '動態'),
-          BottomNavigationBarItem(icon: Icon(Icons.event), label: '活動'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: '配對'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: '聊天'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: '帳號'),
+        items: [
+          BottomNavigationBarItem(icon: Image.asset('assets/match_icon.png', width: 79, height: 79), label: '動態'),
+          BottomNavigationBarItem(icon: Image.asset('assets/match_icon.png', width: 79, height: 79), label: '活動'),
+          BottomNavigationBarItem(icon: Image.asset('assets/match_icon.png', width: 79, height: 79), label: '配對'),
+          BottomNavigationBarItem(icon: Image.asset('assets/chat_icon.png',  width: 79, height: 79), label: '聊天'),
+          BottomNavigationBarItem(icon: Image.asset('assets/person_profile_icon.png', width: 79, height: 79), label: '個人資料'),
         ],
       ),
     );
