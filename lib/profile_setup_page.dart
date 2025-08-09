@@ -246,6 +246,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   final nameController = TextEditingController();
   final birthdayController = TextEditingController();
   final heightController = TextEditingController();
+  
   String? gender;
   Set<String> matchgender = {};
   String? genderDetail; // 記得刪掉
@@ -382,6 +383,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
       'school': school,
       'email': user.email,
       'photoUrl': _photoUrl, // ✅ 加這行
+      'selfIntro': selfIntroController.text.trim(),
       'createdAt': FieldValue.serverTimestamp(),
     };
 

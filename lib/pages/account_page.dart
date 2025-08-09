@@ -238,7 +238,7 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
-  Widget buildProfileDetails() {
+  /*Widget buildProfileDetails() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -253,67 +253,354 @@ class _AccountPageState extends State<AccountPage> {
         const SizedBox(height: 16),
       ],
     );
-  }
+  }*/
 
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) return const Center(child: CircularProgressIndicator());
+  // 新增標題區塊widget
+  Widget buildTitleBlock(double screenWidth, double screenHeight) {
+    double pxW(double px) => screenWidth * (px / 412);
+    double pxH(double px) => screenHeight * (px / 917);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      width: pxW(387),
+      height: pxH(64),
+      child: Stack(
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 35,
-                backgroundImage: photoURL != null ? NetworkImage(photoURL!) : null,
-                child: photoURL == null ? const Icon(Icons.person, size: 40) : null,
-              ),
-              const SizedBox(width: 32),
-              Text(
-                nameController.text.isNotEmpty ? nameController.text : '未設定名稱',
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ],
+          // Icon 圖片
+          Positioned(
+            left: pxW(7),
+            top: pxH(5),
+            width: pxW(52),
+            height: pxH(52),
+            child: Image.asset('assets/qing.png', fit: BoxFit.contain),
           ),
-          const SizedBox(height: 16),
-          buildProfileDetails(),
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: [
-              for (final tag in tags)
-                Chip(
-                  label: Text(tag, style: const TextStyle(fontSize: 12)),
-                  backgroundColor: Colors.blue.shade100,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+
+          // 文字「個人資料」
+          Positioned(
+            left: pxW(25),
+            top: pxH(11),
+            width: pxW(164),
+            height: pxH(41),
+            child: const Center(
+              child: Text(
+                '個人資料',
+                style: TextStyle(
+                  fontFamily: 'Kiwi Maru',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 24,
+                  height: 1,
+                  letterSpacing: 0,
+                  color: Colors.black,
                 ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => showEditBottomSheet(context),
-            icon: const Icon(Icons.edit),
-            label: const Text('編輯個人資料'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.pink,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout),
-            label: const Text('登出'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-              side: const BorderSide(color: Colors.pink),
-              foregroundColor: Colors.pink,
+
+          // 三個點
+          Positioned(
+            left: pxW(347),
+            top: pxH(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(3, (index) {
+                return Container(
+                  width: pxW(6.35),
+                  height: pxH(6.35),
+                  margin: EdgeInsets.only(bottom: index < 2 ? pxH(8.89) : 0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Colors.black, width: 2),
+                    shape: BoxShape.circle,
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildSelfprofileBlock(double screenWidth, double screenHeight) {
+    return Container(
+      width: screenWidth * (387 / 412),
+      height: screenHeight * (694 / 917),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.black, width: 2),
+      ),
+      child: Stack(
+        children: [
+          // 個人頭像
+          Positioned(
+            top: screenHeight * (26 / 917),
+            left: screenWidth * (26 / 412),
+            width: screenWidth * (102 / 412),
+            height: screenHeight * (102 / 917),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color.fromRGBO(255, 200, 202, 1),
+                  width: 5,
+                ),
+              ),
+              child: ClipOval(
+                child: photoURL != null
+                    ? Image.network(
+                        photoURL!,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                      )
+                    : Image.asset(
+                        'assets/match_default.jpg',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                      ),
+              ),
+            ),
+          ),
+
+          // 使用者姓名文字框
+          Positioned(
+            top: screenHeight * (64 / 917),
+            left: screenWidth * (120 / 412),
+            width: screenWidth * (147 / 412),
+            height: screenHeight * (41 / 917),
+            child: Center(
+              child: Text(
+                nameController.text.isNotEmpty ? nameController.text : '未設定名稱',
+                style: const TextStyle(
+                  fontFamily: 'Kiwi Maru',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 24,
+                  height: 1,
+                  letterSpacing: 0,
+                  color: Colors.black,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+
+          // 旋轉 icon.png
+          Positioned(
+            top: screenHeight * (4 / 917),
+            left: screenWidth * (232 / 412),
+            width: screenWidth * (149 / 412),
+            height: screenHeight * (149 / 917),
+            child: Transform.rotate(
+              angle: -14.53 * 3.1415926535 / 180, // 角度轉弧度
+              child: Opacity(
+                opacity: 1,
+                child: Image.asset(
+                  'assets/icon.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+
+          // 學校標題文字
+          Positioned(
+            top: screenHeight * (167 / 917),
+            left: screenWidth * (3 / 412),
+            width: screenWidth * (147 / 412),
+            height: screenHeight * (41 / 917),
+            child: Center(
+              child: Text(
+                '學校：$school',
+                style: const TextStyle(
+                  fontFamily: 'Kiwi Maru',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 24,
+                  height: 1,
+                  letterSpacing: 0,
+                  color: Colors.black,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+
+          // 性別標題文字
+          Positioned(
+            top: screenHeight * (198 / 917),
+            left: screenWidth * (3 / 412),
+            width: screenWidth * (147 / 412),
+            height: screenHeight * (41 / 917),
+            child: Center(
+              child: Text(
+                '性別：$gender${genderDetail != null ? "（$genderDetail）" : ""}',
+                style: const TextStyle(
+                  fontFamily: 'Kiwi Maru',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 24,
+                  height: 1,
+                  letterSpacing: 0,
+                  color: Colors.black,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+
+          // 自我介紹文字框（標題）
+          Positioned(
+            top: screenHeight * (231 / 917),
+            left: screenWidth * (3 / 412),
+            width: screenWidth * (203 / 412),
+            height: screenHeight * (41 / 917),
+            child: Center(
+              child: Text(
+                '自我介紹',
+                style: const TextStyle(
+                  fontFamily: 'Kiwi Maru',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 24,
+                  height: 1,
+                  letterSpacing: 0,
+                  color: Colors.black,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+
+          // 自我介紹內容
+          Positioned(
+            top: screenHeight * (275 / 917),
+            left: screenWidth * (10 / 412),
+            right: screenWidth * (10 / 412),
+            
+            child: Text(
+              bioController.text.isNotEmpty ? bioController.text : '尚未填寫自我介紹',
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          for (int i = 0; i < (tags.length > 6 ? 6 : tags.length); i++)
+            Positioned(
+              top: screenHeight * ( (308 + (i ~/ 3) * (39 + 9) )/ 917),
+              left: screenWidth * ( (30 + (i % 3) * (104 + 8) ) / 412),
+              width: screenWidth * (104 / 412),
+              height: screenHeight * (39 / 917),
+              
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.pink.shade100, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.pink.shade50,
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  tags[i].toString(),
+                  style: const TextStyle(
+                    color: Colors.pink,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          // 編輯按鈕
+          Positioned(
+            top: screenHeight * (500 / 917),
+            left: screenWidth * (26 / 412),
+            width: screenWidth * (156 / 412),
+            height: screenHeight * (55 / 917),
+            child: ElevatedButton.icon(
+              onPressed: () => showEditBottomSheet(context),
+              icon: const Icon(Icons.edit),
+              label: const Text('編輯個人資料'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pink,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50),
+              ),
+            ),
+          ),
+          Positioned(
+            top: screenHeight * (500 / 917),
+            left: screenWidth * (213 / 412),
+            width: screenWidth * (156 / 412),
+            height: screenHeight * (55 / 917),
+            child: OutlinedButton.icon(
+              onPressed: _logout,
+              icon: const Icon(Icons.logout),
+              label: const Text('登出'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                side: const BorderSide(color: Colors.pink),
+                foregroundColor: Colors.pink,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    if (isLoading) return const Center(child: CircularProgressIndicator());
+
+    return Scaffold(
+      backgroundColor: Colors.grey[200],
+      body: Stack(
+        children: [
+          // 上方標題區塊長方形底色（含陰影、邊框）
+          Positioned(
+            top: screenHeight * (29 / 917),
+            left: (screenWidth - (screenWidth * (387 / 412))) / 2,
+            child: Container(
+              width: screenWidth * (387 / 412),
+              height: screenHeight * (64 / 917),
+              decoration: BoxDecoration(
+                color: const Color.fromRGBO(255, 200, 202, 1),
+                border: Border.all(color: Colors.black, width: 2),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromRGBO(0, 0, 0, 0.25),
+                    offset: Offset(0, 4),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              // 內部放標題區塊細節UI
+              child: buildTitleBlock(screenWidth, screenHeight),
+            ),
+          ),
+
+          // 下方個人資料區塊長方形底色
+          Positioned(
+            top: screenHeight * (104 / 917),
+            left: (screenWidth - (screenWidth * (387 / 412))) / 2,
+            child: Container(
+              width: screenWidth * (387 / 412),
+              height: screenHeight * (694 / 917),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.black, width: 2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: buildSelfprofileBlock(screenWidth, screenHeight),
             ),
           ),
         ],

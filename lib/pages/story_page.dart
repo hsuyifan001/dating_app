@@ -17,7 +17,8 @@ class StoryPage extends StatefulWidget {
 class _StoryPageState extends State<StoryPage> {
   final currentUser = FirebaseAuth.instance.currentUser!;
   List<String> matchedUserIds = [];
-
+  List<Map<String, dynamic>> allStories = [];
+  bool hasStories = false;
   @override
   void initState() {
     super.initState();
@@ -28,25 +29,56 @@ class _StoryPageState extends State<StoryPage> {
     final snapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(currentUser.uid)
-        .collection('matchedUsers')
+        .collection('matches')
         .get();
 
+    matchedUserIds = snapshot.docs.map((doc) => doc.id).toList();
+    matchedUserIds.add(currentUser.uid); // 包含自己
+
+    await _loadStories();
+  }
+
+  Future<void> _loadStories() async {
+    List<Map<String, dynamic>> tempStories = [];
+
+    for (var uid in matchedUserIds) {
+      final storySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('stories')
+          .get();
+
+      for (var doc in storySnapshot.docs) {
+        final data = doc.data();
+        data['storyId'] = doc.id;
+        data['userId'] = uid;
+        tempStories.add(data);
+      }
+    }
+
+    // 依照 timestamp 排序（最新在前）
+    tempStories.sort((a, b) {
+      final tsA = (a['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+      final tsB = (b['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+      return tsB.compareTo(tsA);
+    });
+
     setState(() {
-      matchedUserIds = snapshot.docs.map((doc) => doc.id).toList();
-      matchedUserIds.add(currentUser.uid); // 顯示自己動態
+      allStories = tempStories;
+      hasStories = tempStories.isNotEmpty; // 新增判斷
     });
   }
 
-  void _openAddStoryDialog({DocumentSnapshot? existingStory}) async {
-    final textController = TextEditingController(
-        text: existingStory != null ? existingStory['text'] : '');
+
+  void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) async {
+    final textController = TextEditingController(text: existingData?['text'] ?? '');
     final ImagePicker picker = ImagePicker();
     List<XFile> images = [];
 
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(existingStory == null ? '新增動態' : '編輯動態'),
+        title: Text(storyId == null ? '新增動態' : '編輯動態'),
         content: StatefulBuilder(
           builder: (context, setState) => SingleChildScrollView(
             child: Column(
@@ -69,13 +101,8 @@ class _StoryPageState extends State<StoryPage> {
                 if (images.isNotEmpty)
                   Wrap(
                     spacing: 8,
-                    runSpacing: 8,
                     children: images
-                        .map((img) => Image.file(
-                              File(img.path),
-                              width: 80,
-                              height: 80,
-                            ))
+                        .map((img) => Image.file(File(img.path), width: 80, height: 80))
                         .toList(),
                   ),
               ],
@@ -83,10 +110,7 @@ class _StoryPageState extends State<StoryPage> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
@@ -96,23 +120,29 @@ class _StoryPageState extends State<StoryPage> {
                 final ref = FirebaseStorage.instance
                     .ref('story_images/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg');
                 await ref.putFile(File(img.path));
-                final url = await ref.getDownloadURL();
-                uploadedUrls.add(url);
+                uploadedUrls.add(await ref.getDownloadURL());
               }
 
               final storyData = {
-                'userId': currentUser.uid,
                 'text': textController.text.trim(),
-                'photoUrls': uploadedUrls,
+                'photoUrls': uploadedUrls.isNotEmpty ? uploadedUrls : (existingData?['photoUrls'] ?? []),
                 'timestamp': FieldValue.serverTimestamp(),
-                'likes': [],
+                'likes': existingData?['likes'] ?? [],
+                'comments': existingData?['comments'] ?? [],
               };
 
-              if (existingStory == null) {
-                await FirebaseFirestore.instance.collection('stories').add(storyData);
+              final userStoriesRef = FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(currentUser.uid)
+                  .collection('stories');
+
+              if (storyId == null) {
+                await userStoriesRef.add(storyData);
               } else {
-                await existingStory.reference.update(storyData);
+                await userStoriesRef.doc(storyId).update(storyData);
               }
+
+              _loadStories();
             },
             child: const Text('發布'),
           ),
@@ -121,69 +151,94 @@ class _StoryPageState extends State<StoryPage> {
     );
   }
 
-  void _openCommentDialog(DocumentSnapshot story) {
-    showDialog(
+  void _toggleLike(String userId, String storyId, List likes) async {
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('stories')
+        .doc(storyId);
+
+    final hasLiked = likes.contains(currentUser.uid);
+    if (hasLiked) {
+      likes.remove(currentUser.uid);
+    } else {
+      likes.add(currentUser.uid);
+    }
+    await ref.update({'likes': likes});
+    _loadStories();
+  }
+
+  void _addComment(String storyOwnerId, String storyId) async {
+    final commentController = TextEditingController();
+    await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('留言功能'),
-        content: const Text('這裡可以擴充成留言清單與新增留言功能。'),
+        title: const Text('新增留言'),
+        content: TextField(
+          controller: commentController,
+          decoration: const InputDecoration(hintText: '輸入留言'),
+          maxLines: 3,
+        ),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('關閉'),
+            onPressed: () async {
+              final text = commentController.text.trim();
+              if (text.isEmpty) {
+                Navigator.pop(context);
+                return;
+              }
+              Navigator.pop(context);
+
+              final commentRef = FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(storyOwnerId)
+                  .collection('stories')
+                  .doc(storyId)
+                  .collection('comment') // 使用子集合 'comment'
+                  .doc(); // auto id
+
+              await commentRef.set({
+                'userId': currentUser.uid,
+                'text': text,
+                'timestamp': FieldValue.serverTimestamp(),
+              });
+
+              // 留言是透過 StreamBuilder 顯示，所以不需要呼叫 _loadStories()
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('留言已送出')));
+            },
+            child: const Text('送出'),
           ),
         ],
       ),
     );
   }
 
-  void _toggleLike(DocumentSnapshot story) async {
-    final docRef = story.reference;
+  void _deleteStory(String storyId) async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('stories')
+        .doc(storyId)
+        .delete();
+    _loadStories();
+  }
+
+  Widget _buildStoryCard(Map<String, dynamic> story) {
+    final userId = story['userId'] as String;
+    final storyId = story['storyId'] as String;
+    final text = story['text'] ?? '';
+    final photoUrls = List<String>.from(story['photoUrls'] ?? []);
+    final timestamp = (story['timestamp'] as Timestamp?)?.toDate();
     final likes = List<String>.from(story['likes'] ?? []);
-    final hasLiked = likes.contains(currentUser.uid);
-
-    if (hasLiked) {
-      likes.remove(currentUser.uid);
-    } else {
-      likes.add(currentUser.uid);
-    }
-
-    await docRef.update({'likes': likes});
-  }
-
-  void _deleteStory(DocumentSnapshot story) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('確認刪除'),
-        content: const Text('你確定要刪除這則動態嗎？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('刪除')),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await story.reference.delete();
-    }
-  }
-
-  Widget _buildStoryCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final userId = data['userId'];
-    final text = data['text'] ?? '';
-    final photoUrls = List<String>.from(data['photoUrls'] ?? []);
-    final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
-    final likes = List<String>.from(data['likes'] ?? []);
-
+  
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
       builder: (context, snapshot) {
         final userData = snapshot.data?.data() as Map<String, dynamic>? ?? {};
         final name = userData['name'] ?? '使用者';
         final photoUrl = userData['photoUrl'];
-
+  
         return Card(
           margin: const EdgeInsets.all(10),
           child: Padding(
@@ -191,78 +246,171 @@ class _StoryPageState extends State<StoryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 使用者資料
+                // 使用者資訊列
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundImage:
-                          photoUrl != null ? NetworkImage(photoUrl) : null,
+                      backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
                       child: photoUrl == null ? const Icon(Icons.person) : null,
                     ),
                     const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        if (timestamp != null)
-                          Text(
-                            timeago.format(timestamp, locale: 'en_short'),
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                      ],
-                    ),
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      if (timestamp != null)
+                        Text(timeago.format(timestamp), style: const TextStyle(color: Colors.grey)),
+                    ]),
                     const Spacer(),
                     if (userId == currentUser.uid)
                       PopupMenuButton<String>(
                         onSelected: (value) {
-                          if (value == 'edit') _openAddStoryDialog(existingStory: doc);
-                          if (value == 'delete') _deleteStory(doc);
+                          if (value == 'edit') {
+                            _openAddStoryDialog(storyId: storyId, existingData: story);
+                          }
+                          if (value == 'delete') {
+                            _deleteStory(storyId);
+                          }
                         },
                         itemBuilder: (_) => [
                           const PopupMenuItem(value: 'edit', child: Text('編輯')),
                           const PopupMenuItem(value: 'delete', child: Text('刪除')),
                         ],
-                      )
+                      ),
                   ],
                 ),
+  
                 const SizedBox(height: 8),
-                // 文字內容
+  
+                // 文字 & 圖片
                 if (text.isNotEmpty) Text(text),
-                const SizedBox(height: 8),
-                // 圖片
                 if (photoUrls.isNotEmpty)
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: photoUrls
-                        .map((url) => Image.network(
-                              url,
-                              width: 120,
-                              height: 120,
-                              fit: BoxFit.cover,
-                            ))
-                        .toList(),
+                    children: photoUrls.map((url) {
+                      return Image.network(url, width: 120, height: 120, fit: BoxFit.cover);
+                    }).toList(),
                   ),
+  
                 const SizedBox(height: 8),
-                // Like & Comment
+  
+                // 按讚 + 留言按鈕（留言數用 StreamBuilder 即時更新）
                 Row(
                   children: [
                     IconButton(
                       icon: Icon(
-                        likes.contains(currentUser.uid)
-                            ? Icons.favorite
-                            : Icons.favorite_border,
+                        likes.contains(currentUser.uid) ? Icons.favorite : Icons.favorite_border,
                         color: Colors.red,
                       ),
-                      onPressed: () => _toggleLike(doc),
+                      onPressed: () => _toggleLike(userId, storyId, likes),
                     ),
                     Text('${likes.length}'),
-                    IconButton(
-                      icon: const Icon(Icons.comment),
-                      onPressed: () => _openCommentDialog(doc),
+  
+                    // 留言按鈕與即時數字
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .collection('stories')
+                          .doc(storyId)
+                          .collection('comment')
+                          .snapshots(),
+                      builder: (context, commentCountSnap) {
+                        final count = commentCountSnap.hasData ? commentCountSnap.data!.docs.length : 0;
+                        return Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.comment),
+                              onPressed: () => _addComment(userId, storyId),
+                            ),
+                            Text('$count'),
+                          ],
+                        );
+                      },
                     ),
                   ],
-                )
+                ),
+  
+                const SizedBox(height: 6),
+  
+                // 留言清單（最新在下方或依 orderBy 設定）
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(userId)
+                      .collection('stories')
+                      .doc(storyId)
+                      .collection('comment')
+                      .orderBy('timestamp', descending: false) // 可改 descending: true
+                      .snapshots(),
+                  builder: (context, commentSnap) {
+                    if (!commentSnap.hasData || commentSnap.data!.docs.isEmpty) {
+                      // 若沒有留言可回傳空容器（或顯示 '目前還沒有留言'）
+                      return const SizedBox(); // 或： return Padding(...Text('目前還沒有留言'));
+                    }
+  
+                    final commentDocs = commentSnap.data!.docs;
+  
+                    // 使用 Column 顯示留言（小量留言 ok；量大時可改成 ListView shrinkwrap）
+                    return Column(
+                      children: commentDocs.map((cDoc) {
+                        final c = cDoc.data() as Map<String, dynamic>;
+                        final cUserId = c['userId'] as String?;
+                        final cText = c['text'] ?? '';
+                        final cTs = (c['timestamp'] as Timestamp?)?.toDate();
+  
+                        // 取留言者名字/頭像
+                        return FutureBuilder<DocumentSnapshot>(
+                          future: FirebaseFirestore.instance.collection('users').doc(cUserId).get(),
+                          builder: (context, userSnap) {
+                            final cuData = userSnap.data?.data() as Map<String, dynamic>? ?? {};
+                            final cuName = cuData['name'] ?? '使用者';
+                            final cuPhoto = cuData['photoUrl'];
+  
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 8.0, top: 6.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 12,
+                                    backgroundImage: cuPhoto != null ? NetworkImage(cuPhoto) : null,
+                                    child: cuPhoto == null ? const Icon(Icons.person, size: 12) : null,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(cuName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                            const SizedBox(width: 8),
+                                            if (cTs != null)
+                                              Text(timeago.format(cTs), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(cText),
+                                      ],
+                                    ),
+                                  ),
+                                  // 若是自己的留言，顯示刪除按鈕
+                                  if (cUserId == currentUser.uid)
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, size: 18),
+                                      onPressed: () async {
+                                        await cDoc.reference.delete();
+                                      },
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -270,6 +418,7 @@ class _StoryPageState extends State<StoryPage> {
       },
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -283,28 +432,20 @@ class _StoryPageState extends State<StoryPage> {
           ),
         ],
       ),
-      body: matchedUserIds.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('stories')
-                  .orderBy('timestamp', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const CircularProgressIndicator();
-
-                final docs = snapshot.data!.docs.where((doc) {
-                  final userId = doc['userId'];
-                  return matchedUserIds.contains(userId);
-                }).toList();
-
-                return ListView.builder(
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) =>
-                      _buildStoryCard(docs[index]),
-                );
-              },
+      body: hasStories
+        ? ListView.builder(
+            itemCount: allStories.length,
+            itemBuilder: (context, index) => _buildStoryCard(allStories[index]),
+            
+          )
+        : Center(
+            child: Text(
+              "目前沒有其他人的動態",
+              style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
+          ),
     );
-  }
+    }
+
+  
 }
