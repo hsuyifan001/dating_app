@@ -15,8 +15,9 @@ class _AccountPageState extends State<AccountPage> {
   final nameController = TextEditingController();
   final bioController = TextEditingController();
   final birthdayController = TextEditingController();
+  final user = FirebaseAuth.instance.currentUser;
   String email = '';
-  String? photoURL;
+  String? photoURL ;
   List<String> tags = [];
   String gender = '';
   String? genderDetail;
@@ -55,7 +56,7 @@ class _AccountPageState extends State<AccountPage> {
       birthdayController.text = data['birthday'] ?? '';
       bioController.text = data['bio'] ?? '';
       email = data['email'] ?? user.email ?? '';
-      photoURL = user.photoURL;
+      photoURL = data['photoUrl'] ;
       tags = List<String>.from(data['tags'] ?? []);
       gender = data['gender'] ?? '';
       genderDetail = data['genderDetail'];
@@ -345,21 +346,12 @@ class _AccountPageState extends State<AccountPage> {
                   width: 5,
                 ),
               ),
-              child: ClipOval(
-                child: photoURL != null
-                    ? Image.network(
-                        photoURL!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                      )
-                    : Image.asset(
-                        'assets/match_default.jpg',
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
-              ),
+              child: CircleAvatar(
+                backgroundImage: (user == null && user!.data['photoUrl'] != null)
+                    ? NetworkImage(photoURL!)
+                    : const AssetImage('assets/match_default.jpg') as ImageProvider,
+                backgroundColor: Colors.transparent,
+              )
             ),
           ),
 
@@ -392,7 +384,7 @@ class _AccountPageState extends State<AccountPage> {
             width: screenWidth * (149 / 412),
             height: screenHeight * (149 / 917),
             child: Transform.rotate(
-              angle: -14.53 * 3.1415926535 / 180, // 角度轉弧度
+              angle: 14.53 * 3.1415926535 / 180, // 角度轉弧度
               child: Opacity(
                 opacity: 1,
                 child: Image.asset(
@@ -411,7 +403,7 @@ class _AccountPageState extends State<AccountPage> {
             height: screenHeight * (41 / 917),
             child: Center(
               child: Text(
-                '學校：$school',
+                '學校：',
                 style: const TextStyle(
                   fontFamily: 'Kiwi Maru',
                   fontWeight: FontWeight.w500,
@@ -433,7 +425,7 @@ class _AccountPageState extends State<AccountPage> {
             height: screenHeight * (41 / 917),
             child: Center(
               child: Text(
-                '性別：$gender${genderDetail != null ? "（$genderDetail）" : ""}',
+                '性別：',
                 style: const TextStyle(
                   fontFamily: 'Kiwi Maru',
                   fontWeight: FontWeight.w500,
@@ -450,12 +442,12 @@ class _AccountPageState extends State<AccountPage> {
           // 自我介紹文字框（標題）
           Positioned(
             top: screenHeight * (231 / 917),
-            left: screenWidth * (3 / 412),
-            width: screenWidth * (203 / 412),
+            left: screenWidth * (0 / 412),
+            width: screenWidth * (168 / 412),
             height: screenHeight * (41 / 917),
             child: Center(
               child: Text(
-                '自我介紹',
+                '自我介紹:',
                 style: const TextStyle(
                   fontFamily: 'Kiwi Maru',
                   fontWeight: FontWeight.w500,
@@ -472,7 +464,7 @@ class _AccountPageState extends State<AccountPage> {
           // 自我介紹內容
           Positioned(
             top: screenHeight * (275 / 917),
-            left: screenWidth * (10 / 412),
+            left: screenWidth * (58 / 412),
             right: screenWidth * (10 / 412),
             
             child: Text(
@@ -515,39 +507,110 @@ class _AccountPageState extends State<AccountPage> {
                 ),
               ),
             ),
-          // 編輯按鈕
+          // 編輯個人資料按鈕
           Positioned(
             top: screenHeight * (500 / 917),
             left: screenWidth * (26 / 412),
             width: screenWidth * (156 / 412),
             height: screenHeight * (55 / 917),
-            child: ElevatedButton.icon(
+            child: ElevatedButton(
               onPressed: () => showEditBottomSheet(context),
-              icon: const Icon(Icons.edit),
-              label: const Text('編輯個人資料'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.pink,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 50),
+              backgroundColor: const Color.fromRGBO(255, 200, 202, 1),
+              foregroundColor: Colors.black, // 文字顏色
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+                side: const BorderSide(
+                  color: Color.fromRGBO(0, 0, 0, 1),
+                  width: 2,
+                ),
               ),
             ),
+              child: const Text(
+              '編輯個人資料',
+              style: TextStyle(
+                fontFamily: 'Kiwi Maru',
+                fontWeight: FontWeight.w500,
+                fontSize: 20,
+                height: 1.0, // line-height: 100%
+                letterSpacing: 0.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            ),
           ),
+
+          // 登出按鈕
           Positioned(
             top: screenHeight * (500 / 917),
             left: screenWidth * (213 / 412),
             width: screenWidth * (156 / 412),
             height: screenHeight * (55 / 917),
-            child: OutlinedButton.icon(
+            child: ElevatedButton(
               onPressed: _logout,
-              icon: const Icon(Icons.logout),
-              label: const Text('登出'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                side: const BorderSide(color: Colors.pink),
-                foregroundColor: Colors.pink,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color.fromRGBO(255, 255, 255, 1),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  side: const BorderSide(
+                    color: Color.fromRGBO(0, 0, 0, 1),
+                    width: 2,
+                  ),
+                ),
+              ),
+              child: const Text(
+                '登出',
+                style: TextStyle(
+                  color: Color.fromRGBO(246, 157, 158, 1),
+                  fontFamily: 'Kiwi Maru',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 20,
+                  height: 1.0, // line-height: 100%
+                  letterSpacing: 0.0,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ),
+          Positioned(
+            top: screenHeight * (580 / 917), // 登出按鈕下方
+            left: screenWidth * (10 / 412),
+            width: screenWidth * (392 / 412),
+            height: screenHeight * (300 / 917), // 高度可自行調整
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user!.uid) // 只抓自己的
+                  .collection('stories')
+                  .orderBy('timestamp', descending: true) // 依時間排序
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('目前沒有動態'));
+                }
+
+                final stories = snapshot.data!.docs.map((doc) {
+                  return {
+                    ...doc.data() as Map<String, dynamic>,
+                    'storyId': doc.id,
+                  };
+                }).toList();
+
+                return ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: stories.length,
+                  itemBuilder: (context, index) {
+                    return _buildStoryCard(stories[index]);
+                  },
+                );
+              },
+            ),
+          ),
+
         ],
       ),
     );
@@ -607,4 +670,8 @@ class _AccountPageState extends State<AccountPage> {
       ),
     );
   }
+}
+
+extension on User {
+  get data => null;
 }
