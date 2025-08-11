@@ -42,6 +42,7 @@ dependencies:
   firebase_storage: ^12.4.7
   permission_handler: ^11.3.0
   image: ^4.1.7
+  image_editor_plus: ^1.0.0
 
   intl: ^0.18.1
 

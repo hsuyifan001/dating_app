@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart'; // for DateFormat
+import 'dart:async';
 
 class MatchPage extends StatefulWidget {
   const MatchPage({super.key});
@@ -21,183 +22,182 @@ class _MatchPageState extends State<MatchPage> {
     _loadUsers();
   }
 
+  Future<List<DocumentSnapshot>> _batchedUserDocsByIds(List<String> ids) async {
+    const int batchSize = 10;
+    List<DocumentSnapshot> allDocs = [];
 
-Future<List<DocumentSnapshot>> _batchedUserDocsByIds(List<String> ids) async {
-  const int batchSize = 10;
-  List<DocumentSnapshot> allDocs = [];
+    for (var i = 0; i < ids.length; i += batchSize) {
+      final batch = ids.sublist(i, i + batchSize > ids.length ? ids.length : i + batchSize);
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: batch)
+          .get();
+      allDocs.addAll(snapshot.docs);
+    }
 
-  for (var i = 0; i < ids.length; i += batchSize) {
-    final batch = ids.sublist(i, i + batchSize > ids.length ? ids.length : i + batchSize);
-    final snapshot = await FirebaseFirestore.instance
+    return allDocs;
+  }
+
+  Future<void> _loadUsers() async {
+    if (user == null) return;
+    final currentUserId = user!.uid;
+    final now = DateTime.now();
+    final todayKey = DateFormat('yyyyMMdd').format(now);
+
+    final matchDocRef = FirebaseFirestore.instance
         .collection('users')
-        .where(FieldPath.documentId, whereIn: batch)
-        .get();
-    allDocs.addAll(snapshot.docs);
-  }
+        .doc(currentUserId)
+        .collection('dailyMatches')
+        .doc(todayKey);
 
-  return allDocs;
-}
+    final matchDoc = await matchDocRef.get();
 
-Future<void> _loadUsers() async {
-  if (user == null) return;
-  final currentUserId = user!.uid;
-  final now = DateTime.now();
-  final todayKey = DateFormat('yyyyMMdd').format(now);
+    if (matchDoc.exists) {
+      final data = matchDoc.data() ?? {};
+      final userIds = List<String>.from(data['userIds'] ?? []);
+      final reachDailyLimit = data['ReachDailyLimit'] == true;
 
-  final matchDocRef = FirebaseFirestore.instance
-      .collection('users')
-      .doc(currentUserId)
-      .collection('dailyMatches')
-      .doc(todayKey);
-
-  final matchDoc = await matchDocRef.get();
-
-  if (matchDoc.exists) {
-    final data = matchDoc.data() ?? {};
-    final userIds = List<String>.from(data['userIds'] ?? []);
-    final reachDailyLimit = data['ReachDailyLimit'] == true;
-
-    if (reachDailyLimit) {
-      setState(() {
-        users = [];
-        isLoading = false;
-      });
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('今日配對上限已到，請明天再來！')),
-        );
+      if (reachDailyLimit) {
+        setState(() {
+          users = [];
+          isLoading = false;
+        });
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('今日配對上限已到，請明天再來！')),
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    if (userIds.isEmpty) {
+      if (userIds.isEmpty) {
+        setState(() {
+          users = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      final userDocs = await _batchedUserDocsByIds(userIds);
+
       setState(() {
-        users = [];
+        users = userDocs;
         isLoading = false;
       });
       return;
     }
 
-    final userDocs = await _batchedUserDocsByIds(userIds);
-
-    setState(() {
-      users = userDocs;
-      isLoading = false;
-    });
-    return;
-  }
-
-  // 1. 取得已推播過的 userId
-  final pushedSnapshot = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(currentUserId)
-      .collection('pushed')
-      .get();
-  final pushedIds = pushedSnapshot.docs.map((doc) => doc.id).toSet();
-
-  // 2. 取得自己的配對條件與 likedTagCount 及 likedHabitCount
-  final currentUserDoc = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(currentUserId)
-      .get();
-  final currentUserData = currentUserDoc.data() ?? {};
-  final currentUserDepartment = currentUserData['department'] ?? '';
-  final matchSameDepartment = currentUserData['matchSameDepartment'] ?? false;
-  final matchGender = List<String>.from(currentUserData['matchGender'] ?? []);
-  final matchSchools = List<String>.from(currentUserData['matchSchools'] ?? []);
-  final likedTagCount = Map<String, int>.from(currentUserData['likedTagCount'] ?? {});
-  final likedHabitCount = Map<String, int>.from(currentUserData['likedHabitCount'] ?? {});
-
-  // 計算 top 3 tag 及 top 3 habit
-  final sortedTags = likedTagCount.keys.toList()
-    ..sort((a, b) => likedTagCount[b]!.compareTo(likedTagCount[a]!));
-  final topTags = sortedTags.take(3).toList();
-  final sortedHabits = likedHabitCount.keys.toList()
-    ..sort((a, b) => likedHabitCount[b]!.compareTo(likedHabitCount[a]!));
-  final topHabits = sortedHabits.take(3).toList();
-
-  // 3. 對你按過愛心的人
-  final likedMeSnapshot = await FirebaseFirestore.instance
-      .collection('likes')
-      .where('to', isEqualTo: currentUserId)
-      .get();
-  final likedMeIds = likedMeSnapshot.docs.map((doc) => doc['from'] as String).toSet();
-
-  List<DocumentSnapshot> likedMeUsers = [];
-  if (likedMeIds.isNotEmpty) {
-    final allDocs = await _batchedUserDocsByIds(likedMeIds.toList());
-    likedMeUsers = allDocs
-        .where((doc) =>
-            matchGender.contains(doc['gender']) &&
-            !pushedIds.contains(doc.id) &&
-            doc.id != currentUserId)
-        .take(5)
-        .toList();
-  }
-  final likedMeUserIds = likedMeUsers.map((doc) => doc.id).toSet();
-
-  // 4. 查詢一次所有候選人（符合性別、學校、系所且未被推播）
-  final allCandidateSnapshot = await FirebaseFirestore.instance
-      .collection('users')
-      .where('gender', whereIn: matchGender)
-      .where('school', whereIn: matchSchools)
-      .get();
-  final allCandidateDocs = allCandidateSnapshot.docs.where((doc) {
-    final isSelf = doc.id == currentUserId;
-    final isPushed = pushedIds.contains(doc.id);
-    final isSameDepartment = doc['department'] == currentUserDepartment;
-
-    if (matchSameDepartment == false && isSameDepartment) {
-      return false; // 排除同系所
-    }
-
-    return !isSelf && !isPushed;
-  }).toList();
-
-  // 5. 從中挑出 tag 及 habit 傾向者
-  final filteredUsers = allCandidateDocs
-      .where((doc) =>
-          !likedMeUserIds.contains(doc.id) &&
-          ((doc['tags'] as List).any((tag) => topTags.contains(tag)) ||
-           (doc['habits'] as List).any((habit) => topHabits.contains(habit))))
-      .take(15)
-      .toList();
-  final filteredUserIds = filteredUsers.map((doc) => doc.id).toSet();
-
-  // 6. 從剩下的中隨機選擇
-  final randomUsers = allCandidateDocs
-      .where((doc) =>
-          !likedMeUserIds.contains(doc.id) &&
-          !filteredUserIds.contains(doc.id))
-      .toList()
-    ..shuffle();
-  final randomSelection = randomUsers.take(5).toList();
-
-  // 7. 合併推薦名單
-  final recommendedUsers = [...likedMeUsers, ...filteredUsers, ...randomSelection];
-
-  setState(() {
-    users = recommendedUsers;
-    isLoading = false;
-  });
-
-  // 8. 記錄 pushed
-  for (var doc in recommendedUsers) {
-    await FirebaseFirestore.instance
+    // 1. 取得已推播過的 userId
+    final pushedSnapshot = await FirebaseFirestore.instance
         .collection('users')
         .doc(currentUserId)
         .collection('pushed')
-        .doc(doc.id)
-        .set({'pushedAt': FieldValue.serverTimestamp()});
-  }
+        .get();
+    final pushedIds = pushedSnapshot.docs.map((doc) => doc.id).toSet();
 
-  // 9. 快取每日推薦
-  await matchDocRef.set({
-    'createdAt': FieldValue.serverTimestamp(),
-    'userIds': recommendedUsers.map((doc) => doc.id).toList(),
-    'ReachDailyLimit': false,
-  });
-}
+    // 2. 取得自己的配對條件與 likedTagCount 及 likedHabitCount
+    final currentUserDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserId)
+        .get();
+    final currentUserData = currentUserDoc.data() ?? {};
+    final currentUserDepartment = currentUserData['department'] ?? '';
+    final matchSameDepartment = currentUserData['matchSameDepartment'] ?? false;
+    final matchGender = List<String>.from(currentUserData['matchGender'] ?? []);
+    final matchSchools = List<String>.from(currentUserData['matchSchools'] ?? []);
+    final likedTagCount = Map<String, int>.from(currentUserData['likedTagCount'] ?? {});
+    final likedHabitCount = Map<String, int>.from(currentUserData['likedHabitCount'] ?? {});
+
+    // 計算 top 3 tag 及 top 3 habit
+    final sortedTags = likedTagCount.keys.toList()
+      ..sort((a, b) => likedTagCount[b]!.compareTo(likedTagCount[a]!));
+    final topTags = sortedTags.take(3).toList();
+    final sortedHabits = likedHabitCount.keys.toList()
+      ..sort((a, b) => likedHabitCount[b]!.compareTo(likedHabitCount[a]!));
+    final topHabits = sortedHabits.take(3).toList();
+
+    // 3. 對你按過愛心的人
+    final likedMeSnapshot = await FirebaseFirestore.instance
+        .collection('likes')
+        .where('to', isEqualTo: currentUserId)
+        .get();
+    final likedMeIds = likedMeSnapshot.docs.map((doc) => doc['from'] as String).toSet();
+
+    List<DocumentSnapshot> likedMeUsers = [];
+    if (likedMeIds.isNotEmpty) {
+      final allDocs = await _batchedUserDocsByIds(likedMeIds.toList());
+      likedMeUsers = allDocs
+          .where((doc) =>
+              matchGender.contains(doc['gender']) &&
+              !pushedIds.contains(doc.id) &&
+              doc.id != currentUserId)
+          .take(5)
+          .toList();
+    }
+    final likedMeUserIds = likedMeUsers.map((doc) => doc.id).toSet();
+
+    // 4. 查詢一次所有候選人（符合性別、學校、系所且未被推播）
+    final allCandidateSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('gender', whereIn: matchGender)
+        .where('school', whereIn: matchSchools)
+        .get();
+    final allCandidateDocs = allCandidateSnapshot.docs.where((doc) {
+      final isSelf = doc.id == currentUserId;
+      final isPushed = pushedIds.contains(doc.id);
+      final isSameDepartment = doc['department'] == currentUserDepartment;
+
+      if (matchSameDepartment == false && isSameDepartment) {
+        return false; // 排除同系所
+      }
+
+      return !isSelf && !isPushed;
+    }).toList();
+
+    // 5. 從中挑出 tag 及 habit 傾向者
+    final filteredUsers = allCandidateDocs
+        .where((doc) =>
+            !likedMeUserIds.contains(doc.id) &&
+            ((doc['tags'] as List).any((tag) => topTags.contains(tag)) ||
+            (doc['habits'] as List).any((habit) => topHabits.contains(habit))))
+        .take(15)
+        .toList();
+    final filteredUserIds = filteredUsers.map((doc) => doc.id).toSet();
+
+    // 6. 從剩下的中隨機選擇
+    final randomUsers = allCandidateDocs
+        .where((doc) =>
+            !likedMeUserIds.contains(doc.id) &&
+            !filteredUserIds.contains(doc.id))
+        .toList()
+      ..shuffle();
+    final randomSelection = randomUsers.take(5).toList();
+
+    // 7. 合併推薦名單
+    final recommendedUsers = [...likedMeUsers, ...filteredUsers, ...randomSelection];
+
+    setState(() {
+      users = recommendedUsers;
+      isLoading = false;
+    });
+
+    // 8. 記錄 pushed
+    for (var doc in recommendedUsers) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .collection('pushed')
+          .doc(doc.id)
+          .set({'pushedAt': FieldValue.serverTimestamp()});
+    }
+
+    // 9. 快取每日推薦
+    await matchDocRef.set({
+      'createdAt': FieldValue.serverTimestamp(),
+      'userIds': recommendedUsers.map((doc) => doc.id).toList(),
+      'ReachDailyLimit': false,
+    });
+  }
 
   // ...existing code...
 
@@ -278,64 +278,174 @@ Future<void> _loadUsers() async {
         .doc('$targetUserId\_$currentUserId')
         .get();
 
+    // print('反向按讚存在：${reverseLike.exists}'); // debug用
     if (reverseLike.exists) {
-      final matchId = currentUserId.compareTo(targetUserId) < 0
-          ? '${currentUserId}_$targetUserId'
-          : '${targetUserId}_$currentUserId';
-
-      final timestamp = FieldValue.serverTimestamp();
-
-      /*await firestore.collection('matches').doc(matchId).set({
-        'user1': currentUserId,
-        'user2': targetUserId,
-        'matchedAt': FieldValue.serverTimestamp(),
-      });*/
-
-      await Future.wait([
-        firestore
-            .collection('users')
-            .doc(currentUserId)
-            .collection('matches')
-            .doc(targetUserId)
-            .set({
-          'matchedUserId': targetUserId,
-          'matchedAt': timestamp,
-        }),
-        firestore
-            .collection('users')
-            .doc(targetUserId)
-            .collection('matches')
-            .doc(currentUserId)
-            .set({
-          'matchedUserId': currentUserId,
-          'matchedAt': timestamp,
-        }),
-      ]);
-
+      // 先顯示彈窗（不等寫入）
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('🎉 配對成功！')),
-        ).closed.then((_) {
-          _showNextUser();
-        });
+        showMatchDialog(context);
       }
+
+      // 背景處理聊天室與 matches 寫入
+      unawaited(() async {
+        // 建立聊天室（確保不存在才建立）
+        await createChatRoom(currentUserId, targetUserId);
+
+        // 建立 matches 紀錄
+        final timestamp = FieldValue.serverTimestamp();
+        await Future.wait([
+          firestore.collection('users').doc(currentUserId).collection('matches').doc(targetUserId).set({
+            'matchedUserId': targetUserId,
+            'matchedAt': timestamp,
+          }),
+          firestore.collection('users').doc(targetUserId).collection('matches').doc(currentUserId).set({
+            'matchedUserId': currentUserId,
+            'matchedAt': timestamp,
+          }),
+        ]);
+      }());
+
+      // 發送推播通知
+      // sendPushNotification(targetUserId, '配對成功！');
+
+      // 彈窗關閉後才換下一個人
+      _showNextUser();
     } else {
       _showNextUser();
     }
   }
 
   Future<void> _handleDislike(String targetUserId) async {
+    // debug用
+    // final currentUserId = user!.uid;
+    // final allCandidateSnapshot = await FirebaseFirestore.instance
+    //     .collection('users')
+    //     .get();
+    // final allCandidateDocs = allCandidateSnapshot.docs.where((doc) {
+    //   final isSelf = doc.id == currentUserId;
+
+    //   return !isSelf;
+    // }).toList();
+
+    // for(final candidate in allCandidateDocs) {
+    //   if(!users.contains(candidate)) {
+    //     users.add(candidate);
+    //   }
+    // }
+
     // 你可以在這裡實作記錄不喜歡的邏輯，例如加入一個 dislikes collection
     _showNextUser();
   }
 
+  // void showMatchDialog(BuildContext context) {
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (context) {
+  //       return AlertDialog(
+  //         content: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           children: [
+  //             Image.asset('assets/match_success.png'),
+  //             const SizedBox(height: 10),
+  //             const Text(
+  //               '配對成功！',
+  //               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+  //             ),
+  //           ],
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.pop(context),
+  //             child: const Text('關閉'),
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
+  void showMatchDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 點擊背景不會關閉
+      barrierColor: Colors.black.withOpacity(0.5), // 半透明背景
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent, // 完全透明背景
+          elevation: 0,
+          insetPadding: EdgeInsets.all(20), // 控制距離螢幕邊緣的間距
+          child: Stack(
+            children: [
+              // 圖片
+              Image.asset(
+                'assets/photo.png',
+                fit: BoxFit.contain,
+              ),
+              // 右上角關閉按鈕
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.close, size: 32, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> createChatRoom(String userA, String userB) async {
+    final chatId = _getMatchRoomId(userA, userB); // 兩個 uid 排序後組成唯一 id
+
+    final chatDoc = FirebaseFirestore.instance.collection('chats').doc(chatId);
+
+    // 如果聊天室不存在，才建立
+    if (!(await chatDoc.get()).exists) {
+      final userADoc = await FirebaseFirestore.instance.collection('users').doc(userA).get();
+      final userBDoc = await FirebaseFirestore.instance.collection('users').doc(userB).get();
+
+      final userAName = userADoc.data()?['name'] ?? 'User A';
+      final userBName = userBDoc.data()?['name'] ?? 'User B';
+
+      await chatDoc.set({
+        'members': [userA, userB],
+        'type': 'match',
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastMessage': '',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+
+        // 對每個成員儲存對方的名字
+        'displayNames': {
+          userA: userBName,
+          userB: userAName,
+        },
+        'displayPhotos': {
+          userA: userBDoc.data()?['photoUrl'] ?? '',
+          userB: userADoc.data()?['photoUrl'] ?? '',
+        }
+      });
+    }
+  }
+
+  // 讓 chatId 在兩人之間唯一
+  String _getMatchRoomId(String id1, String id2) {
+    final ids = [id1, id2]..sort();
+    return ids.join('_');
+  }
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-  
+    // debug用
+    // int cnt = 1;
+    // for(final user in users) {
+    //   print('第${cnt++}位使用者：${user.data()}');
+    // };
+
     // Figma 畫布尺寸
     const figmaWidth = 412.0;
     const figmaHeight = 917.0;
@@ -500,6 +610,8 @@ Future<void> _loadUsers() async {
                   ),
                 ),
               ),
+
+              //叉叉按鈕
               Positioned(
                 left: bgLeft + bgWidth * (45.0 / figmaWidth),
                 top: bgTop + bgHeight * (701.0 / figmaHeight),
