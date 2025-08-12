@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'dart:typed_data';
 
 class Activity {
   final String title;
@@ -100,8 +102,29 @@ class _ActivityPageState extends State<ActivityPage> {
   }
 
   Future<String> uploadImage(File file) async {
-    final ref = _storage.ref().child('activity_images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-    await ref.putFile(file);
+    final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
+      file.path,
+      minWidth: 800,  // 降低解析度
+      minHeight: 800,
+      quality: 70,    // 壓縮品質
+      format: CompressFormat.jpeg,
+    );
+
+    if (compressedImage == null) {
+      throw Exception('壓縮圖片失敗');
+    }
+
+    // 2️⃣ 上傳壓縮後的檔案
+    final ref = _storage.ref().child(
+      'activity_images/${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
+
+    await ref.putData(
+      compressedImage,
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
+
+    // 3️⃣ 回傳下載 URL
     return await ref.getDownloadURL();
   }
 

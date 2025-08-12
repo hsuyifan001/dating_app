@@ -6,6 +6,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'dart:typed_data';
 
 class StoryPage extends StatefulWidget {
   const StoryPage({Key? key}) : super(key: key);
@@ -117,9 +119,30 @@ class _StoryPageState extends State<StoryPage> {
               List<String> uploadedUrls = [];
 
               for (var img in images) {
-                final ref = FirebaseStorage.instance
-                    .ref('story_images/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg');
-                await ref.putFile(File(img.path));
+                // 1️⃣ 壓縮圖片
+                final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
+                  img.path,
+                  minWidth: 800,  // 解析度限制
+                  minHeight: 800,
+                  quality: 70,    // 壓縮品質
+                  format: CompressFormat.jpeg,
+                );
+              
+                if (compressedImage == null) {
+                  throw Exception('壓縮圖片失敗');
+                }
+              
+                // 2️⃣ 上傳壓縮後的圖片
+                final ref = FirebaseStorage.instance.ref(
+                  'story_images/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg',
+                );
+              
+                await ref.putData(
+                  compressedImage,
+                  SettableMetadata(contentType: 'image/jpeg'),
+                );
+              
+                // 3️⃣ 取得下載 URL
                 uploadedUrls.add(await ref.getDownloadURL());
               }
 

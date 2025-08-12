@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'dart:typed_data';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -459,14 +461,29 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   }
 
   Future<void> _uploadAndSendImage(String chatRoomId, File imageFile) async {
+    final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
+      imageFile.path,
+      minWidth: 800, // 降低解析度
+      minHeight: 800,
+      quality: 70,   // 壓縮品質
+      format: CompressFormat.jpeg, // 轉成 JPEG 省空間
+    );
+
+    if (compressedImage == null) {
+      throw Exception('壓縮圖片失敗');
+    }
+
     final storageRef = FirebaseStorage.instance
         .ref()
         .child('chat_images')
-        .child('${DateTime.now().millisecondsSinceEpoch}.png');
+        .child('${DateTime.now().millisecondsSinceEpoch}.jpg'); // 改成 jpg
 
-    await storageRef.putFile(imageFile);
+    await storageRef.putData(
+      compressedImage,
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
+
     final downloadUrl = await storageRef.getDownloadURL();
-
     final currentUser = FirebaseAuth.instance.currentUser;
 
     // Firestore 新增訊息
