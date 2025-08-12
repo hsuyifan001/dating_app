@@ -232,7 +232,7 @@ class _MatchPageState extends State<MatchPage> {
               !likedMeUsers.map((d) => d.id).contains(doc.id) &&
               ((doc['tags'] as List).any((tag) => topTags.contains(tag)) ||
               (doc['habits'] as List).any((habit) => topHabits.contains(habit))))
-          .take(10) // 原本是15，因debug而改為10
+          .take(15)
           .toList();
 
       filteredUserCount = filteredUsers.length;
