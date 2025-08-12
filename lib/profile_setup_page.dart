@@ -362,9 +362,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     String school = '';
     final email = user.email ?? '';
     if (email.endsWith('@g.nycu.edu.tw') || email.endsWith('@nycu.edu.tw')) {
-      school = 'NYCU';
+      school = 'nycu';
     } else if (email.endsWith('@gapp.nthu.edu.tw') || email.endsWith('@nthu.edu.tw')) {
-      school = 'NTHU';
+      school = 'nthu';
     } else {
       school = '其他';
     }
