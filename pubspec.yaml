@@ -48,6 +48,7 @@ dependencies:
   http: ^1.0.0
   html: ^0.15.0
   timeago: ^3.6.0
+  flutter_image_compress: ^2.3.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1

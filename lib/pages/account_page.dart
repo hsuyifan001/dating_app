@@ -346,9 +346,10 @@ class _AccountPageState extends State<AccountPage> {
                   width: 5,
                 ),
               ),
+              
               child: CircleAvatar(
-                backgroundImage: (user == null && user!.data['photoUrl'] != null)
-                    ? NetworkImage(photoURL!)
+                backgroundImage: (user != null && user!.data != null && user!.data["photoUrl"] != null)
+                    ?NetworkImage(photoURL!) 
                     : const AssetImage('assets/match_default.jpg') as ImageProvider,
                 backgroundColor: Colors.transparent,
               )
@@ -573,43 +574,7 @@ class _AccountPageState extends State<AccountPage> {
               ),
             ),
           ),
-          Positioned(
-            top: screenHeight * (580 / 917), // 登出按鈕下方
-            left: screenWidth * (10 / 412),
-            width: screenWidth * (392 / 412),
-            height: screenHeight * (300 / 917), // 高度可自行調整
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user!.uid) // 只抓自己的
-                  .collection('stories')
-                  .orderBy('timestamp', descending: true) // 依時間排序
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('目前沒有動態'));
-                }
-
-                final stories = snapshot.data!.docs.map((doc) {
-                  return {
-                    ...doc.data() as Map<String, dynamic>,
-                    'storyId': doc.id,
-                  };
-                }).toList();
-
-                return ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemCount: stories.length,
-                  itemBuilder: (context, index) {
-                    return _buildStoryCard(stories[index]);
-                  },
-                );
-              },
-            ),
-          ),
+          
 
         ],
       ),

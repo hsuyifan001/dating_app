@@ -5,6 +5,9 @@ import 'home_page.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'dart:typed_data';
+
 
 class ProfileSetupPage extends StatefulWidget {
 
@@ -872,42 +875,53 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile == null) return;
-
+  
     setState(() {
       _selectedImage = File(pickedFile.path);
       _isUploadingPhoto = true;
     });
-
+  
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null){
-        
-        return;
-      } 
-
-      // debug print
-      //print('user.uid: ${user.uid}');
-      //print('_selectedImage: ${_selectedImage?.path}');
-
+      if (user == null) return;
+  
+      // 1️⃣ 壓縮圖片
+      final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
+        _selectedImage!.path,
+        minWidth: 800, // 降低解析度
+        minHeight: 800,
+        quality: 70,   // 壓縮品質 0-100
+        format: CompressFormat.jpeg,
+      );
+  
+      if (compressedImage == null) {
+        throw Exception('壓縮圖片失敗');
+      }
+  
+      // 2️⃣ 上傳壓縮後的檔案
       final ref = FirebaseStorage.instance
           .ref()
           .child('user_photos')
           .child('${user.uid}.jpg');
-
-      await ref.putFile(_selectedImage!);
+  
+      await ref.putData(
+        compressedImage,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+  
+      // 3️⃣ 取得下載連結
       final url = await ref.getDownloadURL();
-
+  
       setState(() {
         _photoUrl = url;
         _isUploadingPhoto = false;
       });
-
+  
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('照片上傳成功')),
       );
     } catch (e) {
       setState(() => _isUploadingPhoto = false);
-      //print('照片上傳失敗: $e'); // debug print
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('照片上傳失敗：$e')),
       );
