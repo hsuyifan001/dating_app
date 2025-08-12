@@ -121,7 +121,7 @@ class _HomePageState extends State<HomePage> {
         'email': 'test$i@example.com',
         'createdAt': FieldValue.serverTimestamp(),
         'age': 20 + (i % 10),
-        'gender': i % 2 == 0 ? 'male' : 'female',
+        'gender': i % 2 == 0 ? '男性' : '女性',
         'tags': userTags,
         'habits': userHabits,
 
