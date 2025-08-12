@@ -223,8 +223,6 @@ class _ChatPageState extends State<ChatPage> {
                           ? DateFormat('MM/dd HH:mm').format(lastMessageTime.toDate())
                           : '';
 
-                      final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
-                      final myPhotoUrl = displayPhotos[uid] ?? '';
                       final cleanLastMessage = lastMessage.replaceAll(RegExp(r'\s+'), ' ');
 
                       String? groupName = '未命名聊天室';
@@ -233,6 +231,15 @@ class _ChatPageState extends State<ChatPage> {
                       }
                       if (type == 'activity') {
                         groupName = chatData['groupName'] ?? '未命名群組';
+                      }
+
+                      String myPhotoUrl = '';
+                      if (type == 'match') {
+                        final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
+                        myPhotoUrl = displayPhotos[uid] ?? '';
+                      }
+                      if(type == 'activity') {
+                        myPhotoUrl = chatData['groupPhotoUrl'] ?? '';
                       }
 
                       return Container(
