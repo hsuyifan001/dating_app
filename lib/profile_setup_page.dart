@@ -213,35 +213,35 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     '喜歡曬太陽', '文青', '能躺就躺', '鳩咪',
   ];
 
-  final List<String> allTags = [
-    '活潑開朗',
-    '文靜內向',
-    '愛冒險',
-    '宅在家',
-    '愛運動',
-    '喜歡閱讀',
-    '動漫迷',
-    '電影咖',
-    '愛旅行',
-    '吃貨',
-    '早睡型',
-    '夜貓子',
-  ];
+  // final List<String> allTags = [
+  //   '活潑開朗',
+  //   '文靜內向',
+  //   '愛冒險',
+  //   '宅在家',
+  //   '愛運動',
+  //   '喜歡閱讀',
+  //   '動漫迷',
+  //   '電影咖',
+  //   '愛旅行',
+  //   '吃貨',
+  //   '早睡型',
+  //   '夜貓子',
+  // ];
 
-  final Map<String, String> tagDescriptions = {
-    '活潑開朗': '喜歡交朋友，氣氛製造機',
-    '文靜內向': '內斂溫柔，慢熱型',
-    '愛冒險': '喜歡挑戰新鮮事物',
-    '宅在家': '在家也能過得精彩',
-    '愛運動': '運動是生活的一部分',
-    '喜歡閱讀': '沉浸在書香的世界',
-    '動漫迷': '追番是生活日常',
-    '電影咖': '熱愛各種電影類型',
-    '愛旅行': '探索世界、收集回憶',
-    '吃貨': '熱愛美食，總想吃點什麼',
-    '早睡型': '生活規律，健康作息',
-    '夜貓子': '靈感總在深夜爆發',
-  };
+  // final Map<String, String> tagDescriptions = {
+  //   '活潑開朗': '喜歡交朋友，氣氛製造機',
+  //   '文靜內向': '內斂溫柔，慢熱型',
+  //   '愛冒險': '喜歡挑戰新鮮事物',
+  //   '宅在家': '在家也能過得精彩',
+  //   '愛運動': '運動是生活的一部分',
+  //   '喜歡閱讀': '沉浸在書香的世界',
+  //   '動漫迷': '追番是生活日常',
+  //   '電影咖': '熱愛各種電影類型',
+  //   '愛旅行': '探索世界、收集回憶',
+  //   '吃貨': '熱愛美食，總想吃點什麼',
+  //   '早睡型': '生活規律，健康作息',
+  //   '夜貓子': '靈感總在深夜爆發',
+  // };
 
   final PageController _pageController = PageController();
   int _currentPage = 0;
@@ -362,9 +362,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     String school = '';
     final email = user.email ?? '';
     if (email.endsWith('@g.nycu.edu.tw') || email.endsWith('@nycu.edu.tw')) {
-      school = 'NYCU';
+      school = 'nycu';
     } else if (email.endsWith('@gapp.nthu.edu.tw') || email.endsWith('@nthu.edu.tw')) {
-      school = 'NTHU';
+      school = 'nthu';
     } else {
       school = '其他';
     }
@@ -1071,16 +1071,26 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
         const SizedBox(height: 24),
         const Text('系所'),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: departmentList.map((department) => ChoiceChip(
-            label: Text(department),
-            selected: selectedDepartment == department,
-            onSelected: (_) => setState(() => selectedDepartment = department),
-            shape: RoundedRectangleBorder(
+        DropdownButtonFormField<String>(
+          value: selectedDepartment, // 當前選擇的值
+          items: departmentList.map((department) {
+            return DropdownMenuItem<String>(
+              value: department,
+              child: Text(department),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              selectedDepartment = value!;
+            });
+          },
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
             ),
-          )).toList(),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          hint: const Text('請選擇系所'),
         ),
 
         const SizedBox(height: 24),

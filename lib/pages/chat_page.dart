@@ -8,6 +8,7 @@ import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
+import 'dart:async';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -17,35 +18,120 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final currentUser = FirebaseAuth.instance.currentUser;
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  final List<DocumentSnapshot> _chatDocs = [];
+  final int _limit = 20; // 設為20 因debug需要，先設為10
+  bool _isLoading = false;
+  bool _hasMore = true;
+  DocumentSnapshot? _lastDoc;
+  final ScrollController _scrollController = ScrollController();
+
+  StreamSubscription<QuerySnapshot>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenLatestChats();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _listenLatestChats() {
+    final query = FirebaseFirestore.instance
+        .collection('chats')
+        .where('members', arrayContains: uid)
+        .orderBy('lastMessageTime', descending: true)
+        .limit(_limit);
+
+    _subscription = query.snapshots().listen((snapshot) {
+      final latestDocs = snapshot.docs;
+
+      if (_chatDocs.isEmpty) {
+        _chatDocs.addAll(latestDocs);
+      } else {
+        for (var doc in latestDocs) {
+          final index = _chatDocs.indexWhere((c) => c.id == doc.id);
+          if (index >= 0) {
+            _chatDocs[index] = doc;
+          } else {
+            _chatDocs.insert(0, doc);
+          }
+        }
+      }
+
+      // 判斷是否還有更多資料
+      if (latestDocs.length < _limit) {
+        _hasMore = false;  // **這裡很重要**
+      } else {
+        _hasMore = true;
+      }
+
+      _chatDocs.sort((a, b) {
+        final aTime = (a.data() as Map<String, dynamic>)['lastMessageTime'] as Timestamp?;
+        final bTime = (b.data() as Map<String, dynamic>)['lastMessageTime'] as Timestamp?;
+        return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
+      });
+
+      if (_chatDocs.isNotEmpty) {
+        _lastDoc = _chatDocs.last;
+      }
+
+      setState(() {});
+    });
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_isLoading &&
+        _hasMore) {
+      _loadMoreChats();
+    }
+  }
+
+  Future<void> _loadMoreChats() async {
+    if (_isLoading || _lastDoc == null) return;
+    setState(() => _isLoading = true);
+
+    Query query = FirebaseFirestore.instance
+        .collection('chats')
+        .where('members', arrayContains: uid)
+        .orderBy('lastMessageTime', descending: true)
+        .startAfterDocument(_lastDoc!)
+        .limit(_limit);
+
+    final snapshot = await query.get();
+    if (snapshot.docs.isNotEmpty) {
+      _chatDocs.addAll(snapshot.docs);
+      _lastDoc = snapshot.docs.last;
+    }
+
+    if (snapshot.docs.length < _limit) {
+      _hasMore = false;
+    }
+
+    setState(() => _isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (currentUser == null) {
-      return const Center(child: Text('尚未登入'));
+    if (_chatDocs.isEmpty) {
+      return const Center(child: Text('目前沒有聊天室'));
     }
 
     return Scaffold(
-      // appBar: AppBar(
-      //   backgroundColor: Color(0xFFFFC8C8), // 粉色
-      //   elevation: 0,
-      //   title: Row(
-      //     children: [
-      //       Icon(Icons.pets, color: Colors.black),
-      //       SizedBox(width: 8),
-      //       Text("聊天", style: TextStyle(color: Colors.black)),
-      //     ],
-      //   ),
-      //   actions: [
-      //     IconButton(icon: Icon(Icons.more_vert, color: Colors.black), onPressed: () {}),
-      //   ],
-      // ),
       backgroundColor: Color(0xFCD3F8F3), // 淺粉色背景
       body: Padding(
         padding: const EdgeInsets.fromLTRB(12, 48, 12, 12),
         child: Column(
           children: [
-            // 頂部標題區
+            // 頂部標題區（第二組UI風格）
             Container(
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
               decoration: BoxDecoration(
@@ -63,29 +149,9 @@ class _ChatPageState extends State<ChatPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // 寫固定的
-                  // const Image(
-                  //   image: AssetImage('assets/paw.png'),
-                  //   width: 40,
-                  // ),
-                  // const Text(
-                  //   "聊天",
-                  //   style: TextStyle(
-                  //     fontSize: 24,
-                  //     fontWeight: FontWeight.bold,
-                  //   ),
-                  // ),
-                  // IconButton(
-                  //   icon: const Icon(Icons.more_vert, color: Colors.black),
-                  //   onPressed: () {
-                  //     // 搜尋功能
-                  //   },
-                  // ),
-                  
-                  // 寫比例的
                   const Expanded(
                     flex: 1,
-                    child: const Image(
+                    child: Image(
                       image: AssetImage('assets/paw.png'),
                       width: 22,
                     ),
@@ -93,7 +159,7 @@ class _ChatPageState extends State<ChatPage> {
                   const SizedBox(width: 8),
                   const Expanded(
                     flex: 6,
-                    child: const Text(
+                    child: Text(
                       "聊天",
                       style: TextStyle(
                         fontSize: 24,
@@ -106,7 +172,7 @@ class _ChatPageState extends State<ChatPage> {
                     child: IconButton(
                       icon: const Icon(Icons.more_vert, color: Colors.black),
                       onPressed: () {
-                        // 搜尋功能
+                        // TODO: 搜尋或更多功能
                       },
                     ),
                   ),
@@ -116,7 +182,7 @@ class _ChatPageState extends State<ChatPage> {
 
             const SizedBox(height: 12),
 
-            // 聊天室列表
+            // 聊天室列表外層裝飾容器（第二組UI風格）
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -133,257 +199,126 @@ class _ChatPageState extends State<ChatPage> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: _buildChats(), // 你原本的聊天列表
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: EdgeInsets.zero,
+                    itemCount: _chatDocs.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == _chatDocs.length) {
+                        return _hasMore
+                            ? const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Center(child: CircularProgressIndicator()),
+                              )
+                            : const SizedBox.shrink();
+                      }
+
+                      final chat = _chatDocs[index];
+                      final chatData = chat.data() as Map<String, dynamic>;
+
+                      final type = chatData['type'] ?? '';
+                      final lastMessage = chatData['lastMessage'] ?? '';
+                      final lastMessageTime = chatData['lastMessageTime'] as Timestamp?;
+                      final timeStr = lastMessageTime != null
+                          ? DateFormat('MM/dd HH:mm').format(lastMessageTime.toDate())
+                          : '';
+
+                      final cleanLastMessage = lastMessage.replaceAll(RegExp(r'\s+'), ' ');
+
+                      String? groupName = '未命名聊天室';
+                      if (type == 'match') {
+                        groupName = chatData['displayNames'][uid];
+                      }
+                      if (type == 'activity') {
+                        groupName = chatData['groupName'] ?? '未命名群組';
+                      }
+
+                      String myPhotoUrl = '';
+                      if (type == 'match') {
+                        final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
+                        myPhotoUrl = displayPhotos[uid] ?? '';
+                      }
+                      if(type == 'activity') {
+                        myPhotoUrl = chatData['groupPhotoUrl'] ?? '';
+                      }
+
+                      return Container(
+                        color: Colors.white,
+                        child: ListTile(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatRoomPage(
+                                  chatRoomId: chat.id,
+                                  title: groupName ?? '',
+                                  avatarUrl: myPhotoUrl,
+                                ),
+                              ),
+                            );
+                          },
+                          leading: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundColor: Colors.grey.shade300,
+                                backgroundImage:
+                                    (myPhotoUrl.isNotEmpty) ? NetworkImage(myPhotoUrl) : null,
+                                child: (myPhotoUrl.isEmpty)
+                                    ? const Icon(Icons.person, color: Colors.white)
+                                    : null,
+                              ),
+                              if ((chatData['hasUnread'] as Map<String, dynamic>?)?[uid] ==
+                                  true)
+                                Positioned(
+                                  left: -2,
+                                  top: 0,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 1.5),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          title: Text(
+                            groupName ?? '未命名聊天室',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            cleanLastMessage,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Text(
+                            timeStr,
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ),
-      // RefreshIndicator(
-      //   onRefresh: () async {
-      //     setState(() {}); // 重新觸發 StreamBuilder
-      //   },
-      //   child: _buildChats(),
-      // ),
     );
   }
-
-  Widget _buildChats() {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('chats')
-          .where('members', arrayContains: uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('目前沒有聊天室'));
-        }
-
-        final chats = snapshot.data!.docs;
-
-        // 按照最後訊息時間排序
-        chats.sort((a, b) {
-          final aData = a.data() as Map<String, dynamic>;
-          final bData = b.data() as Map<String, dynamic>;
-          final aTime = aData['lastMessageTime'] as Timestamp?;
-          final bTime = bData['lastMessageTime'] as Timestamp?;
-          return (bTime?.toDate() ?? DateTime(0)).compareTo(aTime?.toDate() ?? DateTime(0));
-        });
-
-        return ListView.builder(
-          padding: EdgeInsets.zero,
-          itemCount: chats.length,
-          itemBuilder: (context, index) {
-            final chat = chats[index];
-            final chatData = chat.data() as Map<String, dynamic>;
-            final type = chatData['type'] ?? '';
-            final lastMessage = chatData['lastMessage'] ?? '';
-            final lastMessageTime = chatData['lastMessageTime'] as Timestamp?;
-            final timeStr = lastMessageTime != null
-                ? DateFormat('MM/dd HH:mm').format(lastMessageTime.toDate())
-                : '';
-            final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
-            final myPhotoUrl = displayPhotos[FirebaseAuth.instance.currentUser!.uid] ?? '';
-            final cleanLastMessage = lastMessage.replaceAll(RegExp(r'\s+'), ' ');
-
-            String? groupName = '未命名聊天室';
-            if (type == 'match') {
-              groupName = chatData['displayNames'][FirebaseAuth.instance.currentUser!.uid];
-            }
-            if (type == 'activity') {
-              groupName = chatData['groupName'] ?? '未命名群組';
-            }
-
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-              ),
-              child: ListTile(
-                // contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChatRoomPage(
-                        chatRoomId: chat.id,
-                        title: groupName ?? '',
-                        avatarUrl: chatData['displayPhotos'][FirebaseAuth.instance.currentUser!.uid] ?? '',
-                      ),
-                    ),
-                  );
-                },
-                leading: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CircleAvatar(
-                      radius: 26,
-                      backgroundColor: Colors.grey.shade300,
-                      backgroundImage: (myPhotoUrl.isNotEmpty)
-                          ? NetworkImage(myPhotoUrl)
-                          : null,
-                      child: (myPhotoUrl.isEmpty)
-                          ? const Icon(Icons.person, color: Colors.white) // 如果 asset 載不到，至少會顯示這個 icon
-                          : null,
-                    ),
-                    if ((chatData['hasUnread'] as Map<String, dynamic>?)?[FirebaseAuth.instance.currentUser!.uid] == true)
-                      Positioned(
-                        left: -2,
-                        top: 0,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                title: Text(
-                  groupName ?? '未命名聊天室',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  cleanLastMessage,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                  ),
-                  maxLines: 1,  // 限制一行
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: Text(
-                  timeStr,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Widget _buildMatchChats() {
-  //   return StreamBuilder<QuerySnapshot>(
-  //     stream: FirebaseFirestore.instance
-  //         .collection('users')
-  //         .doc(currentUser!.uid)
-  //         .collection('matches')
-  //         .orderBy('matchedAt', descending: true) // 可選：依照時間排序
-  //         .snapshots(),
-  //     builder: (context, snapshot) {
-  //       if (!snapshot.hasData) {
-  //         return const Center(child: CircularProgressIndicator());
-  //       }
-  
-  //       final matchDocs = snapshot.data!.docs;
-  
-  //       if (matchDocs.isEmpty) {
-  //         return const Center(child: Text('目前沒有配對對象'));
-  //       }
-  
-  //       return ListView.builder(
-  //         itemCount: matchDocs.length,
-  //         itemBuilder: (context, index) {
-  //           final matchDoc = matchDocs[index];
-  //           final matchedUserId = matchDoc.id; // 文件 ID 就是對方 UID
-  
-  //           return FutureBuilder<DocumentSnapshot>(
-  //             future: FirebaseFirestore.instance.collection('users').doc(matchedUserId).get(),
-  //             builder: (context, userSnapshot) {
-  //               if (!userSnapshot.hasData) {
-  //                 return const ListTile(title: Text('載入中...'));
-  //               }
-  
-  //               final userData = userSnapshot.data!.data() as Map<String, dynamic>? ?? {};
-  
-  //               return ListTile(
-  //                 leading: CircleAvatar(
-  //                   backgroundImage: userData['photoURL'] != null
-  //                       ? NetworkImage(userData['photoURL'])
-  //                       : null,
-  //                   child: userData['photoURL'] == null ? const Icon(Icons.person) : null,
-  //                 ),
-  //                 title: Text(userData['name'] ?? '未知使用者'),
-  //                 subtitle: Text(userData['school'] ?? ''),
-  //                 onTap: () {
-  //                   Navigator.push(
-  //                     context,
-  //                     MaterialPageRoute(
-  //                       builder: (context) => ChatRoomPage(
-  //                         chatRoomId: _getMatchRoomId(currentUser!.uid, matchedUserId),
-  //                         title: userData['name'] ?? '',
-  //                       ),
-  //                     ),
-  //                   );
-  //                 },
-  //               );
-  //             },
-  //           );
-  //         },
-  //       );
-  //     },
-  //   );
-  // }
-
-
-  // Widget _buildActivityChats() {
-  //   return StreamBuilder<QuerySnapshot>(
-  //     stream: FirebaseFirestore.instance
-  //         .collection('groupChats')
-  //         .where('members', arrayContains: currentUser!.uid)
-  //         .snapshots(),
-  //     builder: (context, snapshot) {
-  //       final docs = snapshot.data?.docs ?? [];
-
-  //       if (docs.isEmpty) {
-  //         return const Center(child: Text('目前沒有活動群組'));
-  //       }
-
-  //       return ListView.builder(
-  //         itemCount: docs.length,
-  //         itemBuilder: (context, index) {
-  //           final group = docs[index].data() as Map<String, dynamic>;
-  //           return ListTile(
-  //             leading: const Icon(Icons.group),
-  //             title: Text(group['title'] ?? '活動群組'),
-  //             subtitle: Text('成員數量：${(group['members'] as List).length}'),
-  //             onTap: () {
-  //               Navigator.push(
-  //                 context,
-  //                 MaterialPageRoute(
-  //                   builder: (context) => ChatRoomPage(
-  //                     chatRoomId: docs[index].id,
-  //                     title: group['title'] ?? '活動群組',
-  //                   ),
-  //                 ),
-  //               );
-  //             },
-  //           );
-  //         },
-  //       );
-  //     },
-  //   );
-  // }
-
-  // String _getMatchRoomId(String user1, String user2) {
-  //   final ids = [user1, user2]..sort();
-  //   return ids.join('_');
-  // }
 }
 
 class ChatRoomPage extends StatefulWidget {
@@ -476,6 +411,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     final storageRef = FirebaseStorage.instance
         .ref()
         .child('chat_images')
+        .child(chatRoomId)
         .child('${DateTime.now().millisecondsSinceEpoch}.jpg'); // 改成 jpg
 
     await storageRef.putData(
