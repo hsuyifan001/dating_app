@@ -43,6 +43,7 @@ dependencies:
   permission_handler: ^11.3.0
   image: ^4.1.7
   image_editor_plus: ^1.0.0
+  path_provider: ^2.0.11
 
   intl: ^0.18.1
 
