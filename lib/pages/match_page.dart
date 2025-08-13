@@ -16,7 +16,8 @@ class _MatchPageState extends State<MatchPage> {
   final user = FirebaseAuth.instance.currentUser;
   List<DocumentSnapshot> users = [];
   bool isLoading = true;
-  bool reachDailyLimit = false;
+  // bool reachDailyLimit = false;
+  int currentMatchIdx = 0;
 
   @override
   void initState() {
@@ -37,6 +38,9 @@ class _MatchPageState extends State<MatchPage> {
       allDocs.addAll(snapshot.docs);
     }
 
+    // 按原本 ids 順序排序
+    allDocs.sort((a, b) => ids.indexOf(a.id).compareTo(ids.indexOf(b.id)));
+
     return allDocs;
   }
 
@@ -45,6 +49,7 @@ class _MatchPageState extends State<MatchPage> {
     final currentUserId = user!.uid;
     final now = DateTime.now();
     final todayKey = DateFormat('yyyyMMdd').format(now);
+    int leftMatches = 25;
 
     final matchDocRef = FirebaseFirestore.instance
         .collection('users')
@@ -52,6 +57,9 @@ class _MatchPageState extends State<MatchPage> {
         .collection('dailyMatches')
         .doc(todayKey);
 
+    Set<String> dailyMatchIds = {};
+
+    // 0. 取得已儲存的配對快取
     try {
       print('[Step 0] 取得當日配對快取');
       final matchDoc = await matchDocRef.get();
@@ -60,38 +68,41 @@ class _MatchPageState extends State<MatchPage> {
         print('[Step 0] 快取存在，讀取資料');
         final data = matchDoc.data() ?? {};
         final userIds = List<String>.from(data['userIds'] ?? []);
-        reachDailyLimit = data['ReachDailyLimit'] == true;
+        final matchUserCount = userIds.length;
+        leftMatches = 25 - matchUserCount;
+        // reachDailyLimit = data['ReachDailyLimit'] == true;
+        currentMatchIdx = data['currentMatchIdx'] ?? 0;
+        dailyMatchIds = userIds.toSet();
+        print('[Step 0] currentMatchIdx : ${currentMatchIdx}');
 
-        if (reachDailyLimit) {
-          setState(() {
-            users = [];
-            isLoading = false;
-          });
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('今日配對上限已到，請明天再來！')),
-            );
-          }
-          print('[Step 0] 今日配對已達上限，結束');
-          return;
-        }
-
-        if (userIds.isEmpty) {
-          setState(() {
-            users = [];
-            isLoading = false;
-          });
-          print('[Step 0] 快取中 userIds 為空，結束');
-          return;
-        }
-
+        // 先把快取的用戶取出
         final userDocs = await _batchedUserDocsByIds(userIds);
-        setState(() {
-          users = userDocs;
-          isLoading = false;
-        });
-        print('[Step 0] 從快取載入使用者完成，結束');
-        return;
+        users = userDocs;
+
+        if (users.length >= 25) {
+          setState(() {
+            isLoading = false;
+          });
+          print('[Step 0] 快取人數已滿 25，結束');
+          return;
+        }
+
+        // if (reachDailyLimit) {
+        //   setState(() {
+        //     users = [];
+        //     isLoading = false;
+        //   });
+        //   if (context.mounted) {
+        //     ScaffoldMessenger.of(context).showSnackBar(
+        //       const SnackBar(content: Text('今日配對上限已到，請明天再來！')),
+        //     );
+        //   }
+        //   print('[Step 0] 今日配對已達上限，結束');
+        //   return;
+        // }
+
+        // 人數不足，繼續補人
+        print('[Step 0] 快取人數不足 (${users.length}/25)，開始補人流程...');
       }
     } catch (e, st) {
       print('[Error Step 0] 讀取當日配對快取失敗: $e');
@@ -153,7 +164,6 @@ class _MatchPageState extends State<MatchPage> {
     // 3. 對你按過愛心的人
     Set<String> likedMeIds = {};
     List<DocumentSnapshot> likedMeUsers = [];
-    int likedMeCount = 0;
     try {
       print('[Step 3] 取得按過愛心的使用者');
       final likedMeSnapshot = await FirebaseFirestore.instance
@@ -171,13 +181,14 @@ class _MatchPageState extends State<MatchPage> {
         likedMeUsers = allDocs.where((doc) =>
             matchGender.contains(doc['gender']) &&
             !pushedIds.contains(doc.id) &&
-            doc.id != currentUserId
+            doc.id != currentUserId &&
+            !dailyMatchIds.contains(doc.id)
         ).toList();
 
         print('[Step 3] 過濾後按愛心使用者數量: ${likedMeUsers.length}');
 
-        likedMeCount = min(5, likedMeUsers.length);
-        likedMeUsers = likedMeUsers.take(5).toList();
+        likedMeUsers = likedMeUsers.take(min(5, leftMatches)).toList();
+        leftMatches = leftMatches <= 5 ? 0 : leftMatches - 5;
 
         for (var doc in likedMeUsers) {
           print('[Step 3] LikedMeUserId: ${doc.id}');
@@ -204,12 +215,13 @@ class _MatchPageState extends State<MatchPage> {
           final isSelf = doc.id == currentUserId;
           final isPushed = pushedIds.contains(doc.id);
           final isSameDepartment = doc['department'] == currentUserDepartment;
+          final isDailyMatched = dailyMatchIds.contains(doc.id);
 
           if (matchSameDepartment == false && isSameDepartment) {
             return false; // 排除同系所
           }
 
-          return !isSelf && !isPushed;
+          return !isSelf && !isPushed && !isDailyMatched;
         }).toList();
         print('[Step 4] 符合條件的候選人數量: ${allCandidateDocs.length}');
         for (var doc in allCandidateDocs) {
@@ -223,20 +235,20 @@ class _MatchPageState extends State<MatchPage> {
 
     // 5. 從中挑出 tag 及 habit 傾向者
     List<DocumentSnapshot> filteredUsers = [];
-    Set<String> filteredUserIds = {};
-    int filteredUserCount = 0;
+    // Set<String> filteredUserIds = {};
     try {
       print('[Step 5] 挑出 tag 及 habit 傾向者');
       filteredUsers = allCandidateDocs
           .where((doc) =>
               !likedMeUsers.map((d) => d.id).contains(doc.id) &&
+              !users.map((d) => d.id).contains(doc.id) &&
               ((doc['tags'] as List).any((tag) => topTags.contains(tag)) ||
               (doc['habits'] as List).any((habit) => topHabits.contains(habit))))
-          .take(15)
+          .take(min(15, leftMatches))
           .toList();
+      leftMatches = leftMatches <= 15 ? 0 : leftMatches - 15;
 
-      filteredUserCount = filteredUsers.length;
-      filteredUserIds = filteredUsers.map((doc) => doc.id).toSet();
+      // filteredUserIds = filteredUsers.map((doc) => doc.id).toSet();
       print('[Step 5] 過濾後候選人數量: ${filteredUsers.length}');
 
       for (var doc in filteredUsers) {
@@ -254,11 +266,12 @@ class _MatchPageState extends State<MatchPage> {
       print('[Step 6] 從剩餘候選人隨機選擇');
       randomUsers = allCandidateDocs
           .where((doc) =>
+              !users.map((d) => d.id).contains(doc.id) &&
               !likedMeUsers.map((d) => d.id).contains(doc.id) &&
-              !filteredUserIds.contains(doc.id))
+              !filteredUsers.map((d) => d.id).contains(doc.id))
           .toList()
         ..shuffle();
-      randomSelection = randomUsers.take(25 - likedMeCount - filteredUserCount).toList();
+      randomSelection = randomUsers.take(leftMatches).toList();
       print('[Step 6] 隨機選擇人數: ${randomSelection.length}');
 
       for (var doc in randomSelection) {
@@ -270,7 +283,7 @@ class _MatchPageState extends State<MatchPage> {
     }
 
     // 7. 合併推薦名單
-    final recommendedUsers = [...likedMeUsers, ...filteredUsers, ...randomSelection];
+    final recommendedUsers = [...users, ...likedMeUsers, ...filteredUsers, ...randomSelection];
     print('[Step 7] 合併推薦名單數量: ${recommendedUsers.length}');
 
     setState(() {
@@ -279,21 +292,21 @@ class _MatchPageState extends State<MatchPage> {
     });
 
     // 8. 記錄 pushed
-    try {
-      print('[Step 8] 記錄 pushed');
-      for (var doc in recommendedUsers) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUserId)
-            .collection('pushed')
-            .doc(doc.id)
-            .set({'pushedAt': FieldValue.serverTimestamp()});
-        print('[Step 8] 記錄 userId ${doc.id}');
-      }
-    } catch (e, st) {
-      print('[Error Step 8] 記錄 pushed 失敗: $e');
-      print(st);
-    }
+    // try {
+    //   print('[Step 8] 記錄 pushed');
+    //   for (var doc in recommendedUsers) {
+    //     await FirebaseFirestore.instance
+    //         .collection('users')
+    //         .doc(currentUserId)
+    //         .collection('pushed')
+    //         .doc(doc.id)
+    //         .set({'pushedAt': FieldValue.serverTimestamp()});
+    //     print('[Step 8] 記錄 userId ${doc.id}');
+    //   }
+    // } catch (e, st) {
+    //   print('[Error Step 8] 記錄 pushed 失敗: $e');
+    //   print(st);
+    // }
 
     // 9. 快取每日推薦
     try {
@@ -301,7 +314,8 @@ class _MatchPageState extends State<MatchPage> {
       await matchDocRef.set({
         'createdAt': FieldValue.serverTimestamp(),
         'userIds': recommendedUsers.map((doc) => doc.id).toList(),
-        'ReachDailyLimit': false,
+        // 'ReachDailyLimit': false,
+        'currentMatchIdx': currentMatchIdx,
       });
       print('[Step 9] 快取每日推薦完成');
     } catch (e, st) {
@@ -313,29 +327,24 @@ class _MatchPageState extends State<MatchPage> {
   // ...existing code...
 
   Future<void> _showNextUser() async {
-    if (users.isNotEmpty) {
-      setState(() {
-        users.removeAt(0);
-      });
+    final currentUserId = user!.uid;
+    final todayKey = DateFormat('yyyyMMdd').format(DateTime.now());
+    final matchDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserId)
+        .collection('dailyMatches')
+        .doc(todayKey);
+
+    final matchDoc = await matchDocRef.get();
+    if (!matchDoc.exists) return;
+
+    if(currentMatchIdx < users.length) {
+      currentMatchIdx++;
+      await matchDocRef.update({'currentMatchIdx': currentMatchIdx});
     }
-    if (users.isEmpty) {
-      setState(() {
-        reachDailyLimit = true;
-      });
-      final currentUserId = user!.uid;
-      final todayKey = DateFormat('yyyyMMdd').format(DateTime.now());
-      final matchDocRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUserId)
-          .collection('dailyMatches')
-          .doc(todayKey);
-      await matchDocRef.update({'ReachDailyLimit': true});
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('今日配對上限已到，請明天再來！')),
-        );
-      }
-    }
+
+    setState(() {});
+
   }
   
   Future<void> _handleLike(String targetUserId) async {
@@ -350,6 +359,16 @@ class _MatchPageState extends State<MatchPage> {
       'from': currentUserId,
       'to': targetUserId,
       'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    // 2. 儲存 pushed 紀錄
+    await firestore
+        .collection('users')
+        .doc('$currentUserId')
+        .collection('pushed')
+        .doc(targetUserId)
+        .set({
+      'pushedAt': FieldValue.serverTimestamp(),
     });
 
     // 2. 取得被按愛心者的 tags 及 habits
@@ -528,7 +547,7 @@ class _MatchPageState extends State<MatchPage> {
     // print('已輸出所有配對者');
 
     // 達到配對上限時顯示的頁面
-    if(reachDailyLimit) {
+    if(currentMatchIdx == users.length) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -564,8 +583,8 @@ class _MatchPageState extends State<MatchPage> {
   
     const tagBoxLeft = 45.0;
     const tagBoxTop = 560.0;
-    const tagBoxWidth = 104.0;
-    const tagBoxHeight = 39.0;
+    const tagBoxWidth = 104.0; // 原本是 104.0
+    const tagBoxHeight = 39.0; // 原本是 39.0
     const tagBoxHSpace = 8.0; // 水平間距
     const tagBoxVSpace = 9.0; // 垂直間距
         return Container(
@@ -607,7 +626,7 @@ class _MatchPageState extends State<MatchPage> {
           
           // 取得標籤資料
           final tags = users.isNotEmpty
-              ? ((users[0].data() as Map)['tags'] as List<dynamic>? ?? [])
+              ? ((users[currentMatchIdx].data() as Map)['tags'] as List<dynamic>? ?? [])
               : List.generate(6, (i) => '標籤${i + 1}');
 
           return Stack(
@@ -620,13 +639,13 @@ class _MatchPageState extends State<MatchPage> {
                 height: bgWidth * (287.0 / figmaWidth), // 保持正方形
                 child: GestureDetector(
                   onTap: users.isNotEmpty
-                    ? () => _showUserDetail(context, users[0].data() as Map)
+                    ? () => _showUserDetail(context, users[currentMatchIdx].data() as Map)
                     : null,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: users.isNotEmpty && (users[0].data() as Map)['photoUrl'] != null && (users[0].data() as Map)['photoUrl'].toString().isNotEmpty
+                    child: users.isNotEmpty && (users[currentMatchIdx].data() as Map)['photoUrl'] != null && (users[currentMatchIdx].data() as Map)['photoUrl'].toString().isNotEmpty
                         ? Image.network(
-                            (users[0].data() as Map)['photoUrl'],
+                            (users[currentMatchIdx].data() as Map)['photoUrl'],
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) => Image.asset(
                               'assets/match_default.jpg',
@@ -675,7 +694,7 @@ class _MatchPageState extends State<MatchPage> {
                   ),
                   child: Text(
                     users.isNotEmpty
-                        ? (users[0].data() as Map)['name'] ?? '名字'
+                        ? (users[currentMatchIdx].data() as Map)['name'] ?? '名字'
                         : '名字',
                     style: const TextStyle(
                       fontSize: 22,
@@ -685,37 +704,39 @@ class _MatchPageState extends State<MatchPage> {
                   ),
                 ),
               ),
+
+              // 標籤框框
               for (int i = 0; i < (tags.length > 6 ? 6 : tags.length); i++)
-              Positioned(
-                left: tagBoxLeftPx + (i % 3) * (tagBoxWidthPx + tagBoxHSpacePx),
-                top: tagBoxTopPx + (i ~/ 3) * (tagBoxHeightPx + tagBoxVSpacePx),
-                width: tagBoxWidthPx,
-                height: tagBoxHeightPx,
-                child: Container(
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.pink.shade100, width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.pink.shade50,
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    tags[i].toString(),
-                    style: const TextStyle(
-                      color: Colors.pink,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
+                Positioned(
+                  left: tagBoxLeftPx + (i % 3) * (tagBoxWidthPx + tagBoxHSpacePx),
+                  top: tagBoxTopPx + (i ~/ 3) * (tagBoxHeightPx + tagBoxVSpacePx),
+                  width: tagBoxWidthPx,
+                  height: tagBoxHeightPx,
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.pink.shade100, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.pink.shade50,
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    child: Text(
+                      tags[i].toString().replaceAll(RegExp(r'\r?\n'), ''), // 去掉換行
+                      style: const TextStyle(
+                        color: Colors.pink,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
-              ),
 
               //叉叉按鈕
               Positioned(
@@ -724,7 +745,7 @@ class _MatchPageState extends State<MatchPage> {
                 width: bgWidth * (124.0 / figmaWidth),
                 height: bgWidth * (124.0 / figmaWidth), // 用寬度比例確保圓形
                 child: GestureDetector(
-                  onTap: users.isNotEmpty ? () => _handleDislike(users[0].id) : null,
+                  onTap: users.isNotEmpty ? () => _handleDislike(users[currentMatchIdx].id) : null,
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -757,7 +778,7 @@ class _MatchPageState extends State<MatchPage> {
                 width: bgWidth * (124.0 / figmaWidth),
                 height: bgWidth * (124.0 / figmaWidth), // 用寬度比例確保圓形
                 child: GestureDetector(
-                  onTap: users.isNotEmpty ? () => _handleLike(users[0].id) : null,
+                  onTap: users.isNotEmpty ? () => _handleLike(users[currentMatchIdx].id) : null,
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
