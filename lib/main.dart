@@ -6,7 +6,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_setup_page.dart'; // 等下會建立
 import 'home_page.dart';
-import 'school_select_page.dart'; // 你的主交友頁面
 import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 
 void main() async { // 記得awit要配上async

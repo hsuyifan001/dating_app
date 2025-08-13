@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_editor_plus/image_editor_plus.dart';
+// import 'package:image_editor_plus/image_editor_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
 import 'dart:async';
+// import 'package:path_provider/path_provider.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -626,13 +627,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                           : Colors.transparent,
                                       borderRadius: BorderRadius.only(
                                         topLeft: Radius.circular(
-                                            isMe ? 12 : (sameAsPrev ? 4 : 12)),
+                                            isMe ? 16 : (sameAsPrev ? 4 : 16)),
                                         topRight: Radius.circular(
-                                            isMe ? (sameAsPrev ? 4 : 12) : 12),
+                                            isMe ? (sameAsPrev ? 4 : 16) : 16),
                                         bottomLeft: Radius.circular(
-                                            isMe ? 12 : (sameAsNext ? 4 : 12)),
+                                            isMe ? 16 : (sameAsNext ? 4 : 16)),
                                         bottomRight: Radius.circular(
-                                            isMe ? (sameAsNext ? 4 : 12) : 12),
+                                            isMe ? (sameAsNext ? 4 : 16) : 16),
                                       ),
                                     ),
                                     child: type == 'text'
@@ -647,17 +648,47 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                                 builder: (_) => Dialog(
                                                   backgroundColor: Colors.transparent,
                                                   insetPadding: const EdgeInsets.all(10),
-                                                  child: InteractiveViewer(
-                                                    child: Image.network(
-                                                      msg['imageUrl'] ?? '',
-                                                      fit: BoxFit.contain,
-                                                    ),
+                                                  child: Stack(
+                                                    children: [
+                                                      InteractiveViewer(
+                                                        child: Image.network(
+                                                          msg['imageUrl'] ?? '',
+                                                          fit: BoxFit.contain,
+                                                        ),
+                                                      ),
+                                                      Positioned(
+                                                        right: 4,
+                                                        top: 4,
+                                                        child: GestureDetector(
+                                                          onTap: () {
+                                                            Navigator.of(context).pop(); // 關閉圖片預覽
+                                                          },
+                                                          child: Container(
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.black54,
+                                                              shape: BoxShape.circle,
+                                                            ),
+                                                            padding: const EdgeInsets.all(4),
+                                                            child: const Icon(
+                                                              Icons.close,
+                                                              size: 18,
+                                                              color: Colors.white,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               );
                                             },
                                             child: ClipRRect(
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.only(
+                                                topLeft: Radius.circular(isMe ? 16 : (sameAsPrev ? 4 : 16)),
+                                                topRight: Radius.circular(isMe ? (sameAsPrev ? 4 : 16) : 16),
+                                                bottomLeft: Radius.circular(isMe ? 16 : (sameAsNext ? 4 : 16)),
+                                                bottomRight: Radius.circular(isMe ? (sameAsNext ? 4 : 16) : 16),
+                                              ),
                                               child: Image.network(
                                                 msg['imageUrl'] ?? '',
                                                 width: 180,
@@ -777,40 +808,61 @@ class ImagePreviewPage extends StatelessWidget {
             left: 20,
             right: 20,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // 編輯按鈕
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white70,
-                    foregroundColor: Colors.black,
-                  ),
-                  icon: Icon(Icons.edit),
-                  label: Text("編輯"),
-                  onPressed: () async {
-                    final editedImage = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ImageEditor(image: originalImage),
-                      ),
-                    );
-                    if (editedImage != null) {
-                      Navigator.pop(context, File(editedImage.path));
-                    }
-                  },
-                ),
+                // // 編輯按鈕
+                // ElevatedButton.icon(
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Colors.white70,
+                //     foregroundColor: Colors.black,
+                //   ),
+                //   icon: const Icon(Icons.edit),
+                //   label: const Text("編輯"),
+                //   onPressed: () async {
+                //     try {
+                //       // 讀取圖片成 Uint8List
+                //       Uint8List imageBytes = await originalImage.readAsBytes();
+
+                //       // 開啟 image_editor_plus 編輯器
+                //       final editedBytes = await Navigator.push<Uint8List?>(
+                //         context,
+                //         MaterialPageRoute(
+                //           builder: (context) => ImageEditor(
+                //             image: imageBytes,
+                //           ),
+                //         ),
+                //       );
+
+                //       if (editedBytes != null) {
+                //         // 將 Uint8List 存成暫存檔
+                //         final tempDir = await getTemporaryDirectory();
+                //         final editedFile =
+                //             File('${tempDir.path}/edited_image.png');
+                //         await editedFile.writeAsBytes(editedBytes);
+
+                //         Navigator.pop(context, editedFile);
+                //       }
+                //     } catch (e) {
+                //       print('圖片編輯錯誤: $e');
+                //     }
+                //   },
+                // ),
                 // 傳送按鈕
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
+                SizedBox(
+                  width: 70,
+                  height: 70,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: Color(0xFFD1F5F1),
+                      padding: EdgeInsets.all(4),
+                      side: BorderSide(color: Colors.black, width: 2),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context, originalImage);
+                    },
+                    child: Image.asset('assets/airplane.png')
                   ),
-                  icon: Icon(Icons.send),
-                  label: Text("傳送"),
-                  onPressed: () {
-                    Navigator.pop(context, originalImage);
-                  },
                 ),
               ],
             ),
@@ -820,7 +872,7 @@ class ImagePreviewPage extends StatelessWidget {
             top: 40,
             left: 20,
             child: IconButton(
-              icon: Icon(Icons.close, color: Colors.white, size: 30),
+              icon: const Icon(Icons.close, color: Colors.white, size: 30),
               onPressed: () => Navigator.pop(context),
             ),
           ),
