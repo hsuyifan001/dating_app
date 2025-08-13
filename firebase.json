@@ -1,1 +1,39 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"datingappregister","appId":"1:137173225324:android:35463f279b69b2589e2d49","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"datingappregister","configurations":{"android":"1:137173225324:android:35463f279b69b2589e2d49","ios":"1:137173225324:ios:be3759a4639a4ab49e2d49","macos":"1:137173225324:ios:be3759a4639a4ab49e2d49","web":"1:137173225324:web:403034c017cfa9fe9e2d49","windows":"1:137173225324:web:f298a335bf779e3f9e2d49"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "datingappregister",
+          "appId": "1:137173225324:android:35463f279b69b2589e2d49",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "datingappregister",
+          "configurations": {
+            "android": "1:137173225324:android:35463f279b69b2589e2d49",
+            "ios": "1:137173225324:ios:be3759a4639a4ab49e2d49",
+            "macos": "1:137173225324:ios:be3759a4639a4ab49e2d49",
+            "web": "1:137173225324:web:403034c017cfa9fe9e2d49",
+            "windows": "1:137173225324:web:f298a335bf779e3f9e2d49"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "venv",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "runtime": "python310"
+    }
+  ]
+}

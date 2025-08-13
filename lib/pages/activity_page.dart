@@ -243,7 +243,7 @@ class _ActivityPageState extends State<ActivityPage> {
       } else {
         print('Already exists: $title');
       }
-  }
+    }
     
   }
 
