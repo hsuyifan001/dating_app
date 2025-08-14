@@ -10,6 +10,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
 import 'dart:async';
 // import 'package:path_provider/path_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -343,9 +344,42 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final TextEditingController messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  List<Map<String, dynamic>> _localTempMessages = [];
+
+  void _addTempImageMessage(File imageFile) {
+    setState(() {
+      _localTempMessages.add({
+        'isTemp': true,
+        'type': 'image',
+        'localFile': imageFile,
+        'progress': 0.0,
+        'sender': currentUser!.uid,
+        'tempId': DateTime.now().millisecondsSinceEpoch.toString(),
+      });
+    });
+  }
+
+  void _updateTempImageProgress(String tempId, double progress) {
+    print('進度更新: tempId=$tempId, progress=$progress'); // 添加日誌
+    setState(() {
+      for (var msg in _localTempMessages) {
+        if (msg['tempId'] == tempId) {
+          msg['progress'] = progress;
+        }
+      }
+    });
+  }
+
+  void _removeTempImageMessage(String tempId) {
+    setState(() {
+      _localTempMessages.removeWhere((msg) => msg['tempId'] == tempId);
+    });
+  }
+
   void sendMessage() async {
     final text = messageController.text.trim();
     messageController.clear();
+    FocusScope.of(context).unfocus();
     if (text.isEmpty) return;
 
     await FirebaseFirestore.instance
@@ -397,52 +431,69 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   }
 
   Future<void> _uploadAndSendImage(String chatRoomId, File imageFile) async {
-    final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
-      imageFile.path,
-      minWidth: 800, // 降低解析度
-      minHeight: 800,
-      quality: 70,   // 壓縮品質
-      format: CompressFormat.jpeg, // 轉成 JPEG 省空間
-    );
+    final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+    _addTempImageMessage(imageFile);
 
-    if (compressedImage == null) {
-      throw Exception('壓縮圖片失敗');
+    try {
+      final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
+        imageFile.path,
+        minWidth: 800,
+        minHeight: 800,
+        quality: 70,
+        format: CompressFormat.jpeg,
+      );
+
+      if (compressedImage == null) throw Exception('壓縮圖片失敗');
+
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('chat_images')
+          .child(chatRoomId)
+          .child('$tempId.jpg');
+
+      final uploadTask = storageRef.putData(
+        compressedImage,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      uploadTask.snapshotEvents.listen((snapshot) {
+        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        _updateTempImageProgress(tempId, progress);
+      });
+
+      await uploadTask;
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      // 提前移除臨時訊息
+      _removeTempImageMessage(tempId);
+
+      // 寫入 Firestore
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatRoomId)
+          .collection('messages')
+          .add({
+        'sender': currentUser!.uid,
+        'type': 'image',
+        'imageUrl': downloadUrl,
+        'timestamp': FieldValue.serverTimestamp(),
+        'tempId': tempId, // 添加 tempId 至 Firestore 訊息，方便後續過濾
+      });
+
+      // 更新聊天室資訊
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatRoomId)
+          .update({
+        'lastMessage': '[圖片]',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('圖片上傳失敗: $e')),
+      );
+      _removeTempImageMessage(tempId);
     }
-
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('chat_images')
-        .child(chatRoomId)
-        .child('${DateTime.now().millisecondsSinceEpoch}.jpg'); // 改成 jpg
-
-    await storageRef.putData(
-      compressedImage,
-      SettableMetadata(contentType: 'image/jpeg'),
-    );
-
-    final downloadUrl = await storageRef.getDownloadURL();
-    final currentUser = FirebaseAuth.instance.currentUser;
-
-    // Firestore 新增訊息
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatRoomId)
-        .collection('messages')
-        .add({
-      'sender': currentUser!.uid,
-      'type': 'image',
-      'imageUrl': downloadUrl,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-
-    // 更新聊天室最後訊息
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatRoomId)
-        .update({
-      'lastMessage': '[圖片]',
-      'lastMessageTime': FieldValue.serverTimestamp(),
-    });
   }
 
   @override
@@ -558,38 +609,53 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                           .orderBy('timestamp')
                           .snapshots(),
                       builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return const Center(child: Text('載入訊息失敗'));
+                        }
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
                         final messages = snapshot.data?.docs ?? [];
+                        final firebaseMessages = messages.map((doc) => doc.data() as Map<String, dynamic>).toList();
+
+                        final allMessages = [
+                          ...firebaseMessages.where((msg) {
+                            final msgTempId = msg['tempId'];
+                            return msgTempId == null || !_localTempMessages.any((tempMsg) => tempMsg['tempId'] == msgTempId);
+                          }),
+                          ..._localTempMessages,
+                        ];
 
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_scrollController.hasClients) {
-                            _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+                          if (_scrollController.hasClients && allMessages.isNotEmpty) {
+                            _scrollController.animateTo(
+                              _scrollController.position.maxScrollExtent,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
                           }
                         });
 
                         return ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.all(8),
-                          itemCount: messages.length,
+                          itemCount: allMessages.length,
                           itemBuilder: (context, index) {
-                            final msg = messages[index].data() as Map<String, dynamic>;
+                            final msg = allMessages[index];
+                            final isTemp = msg['isTemp'] == true;
                             final isMe = msg['sender'] == currentUser!.uid;
                             final type = msg['type'] ?? 'text';
 
-                            // 判斷上一則/下一則是否同一發送者
                             final bool sameAsPrev = index > 0 &&
-                                (messages[index - 1].data()
-                                    as Map<String, dynamic>)['sender'] == msg['sender'];
-                            final bool sameAsNext = index < messages.length - 1 &&
-                                (messages[index + 1].data()
-                                    as Map<String, dynamic>)['sender'] == msg['sender'];
+                                allMessages[index - 1]['sender'] == msg['sender'];
+                            final bool sameAsNext = index < allMessages.length - 1 &&
+                                allMessages[index + 1]['sender'] == msg['sender'];
 
-                            // 頭像顯示條件：對方 & 下一則不是同一人
                             final bool showAvatar = !isMe && !sameAsNext;
 
                             return Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment:
-                                  isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                              mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                               children: [
                                 if (!isMe) ...[
                                   if (showAvatar)
@@ -599,9 +665,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                         padding: const EdgeInsets.only(right: 6),
                                         child: CircleAvatar(
                                           radius: 18,
-                                          backgroundImage: NetworkImage(
-                                            widget.avatarUrl,
-                                          ),
+                                          backgroundImage: NetworkImage(widget.avatarUrl),
                                           backgroundColor: Colors.grey.shade300,
                                         ),
                                       ),
@@ -611,92 +675,146 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                 ],
                                 Flexible(
                                   child: Container(
-                                    padding: type == 'text'
-                                        ? const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 8)
-                                        : EdgeInsets.zero,
                                     margin: EdgeInsets.only(
                                       top: sameAsPrev ? 0 : 6,
                                       bottom: 1.5,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: type == 'text'
-                                          ? (isMe
-                                              ? const Color(0xFF89C9C2)
-                                              : const Color(0xFFF6DBDC))
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.only(
-                                        topLeft: Radius.circular(
-                                            isMe ? 16 : (sameAsPrev ? 4 : 16)),
-                                        topRight: Radius.circular(
-                                            isMe ? (sameAsPrev ? 4 : 16) : 16),
-                                        bottomLeft: Radius.circular(
-                                            isMe ? 16 : (sameAsNext ? 4 : 16)),
-                                        bottomRight: Radius.circular(
-                                            isMe ? (sameAsNext ? 4 : 16) : 16),
-                                      ),
-                                    ),
-                                    child: type == 'text'
-                                        ? Text(
-                                            msg['text'] ?? '',
-                                            style: const TextStyle(fontSize: 14),
-                                          )
-                                        : GestureDetector(
-                                            onTap: () {
-                                              showDialog(
-                                                context: context,
-                                                builder: (_) => Dialog(
-                                                  backgroundColor: Colors.transparent,
-                                                  insetPadding: const EdgeInsets.all(10),
-                                                  child: Stack(
-                                                    children: [
-                                                      InteractiveViewer(
-                                                        child: Image.network(
-                                                          msg['imageUrl'] ?? '',
-                                                          fit: BoxFit.contain,
+                                    child: isTemp
+                                        ? Stack(
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius: BorderRadius.only(
+                                                  topLeft: Radius.circular(isMe ? 16 : (sameAsPrev ? 4 : 16)),
+                                                  topRight: Radius.circular(isMe ? (sameAsPrev ? 4 : 16) : 16),
+                                                  bottomLeft: Radius.circular(isMe ? 16 : (sameAsNext ? 4 : 16)),
+                                                  bottomRight: Radius.circular(isMe ? (sameAsNext ? 4 : 16) : 16),
+                                                ),
+                                                child: Image.file(
+                                                  msg['localFile'],
+                                                  width: 180,
+                                                  height: 180,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                              if (msg['progress'] != null && msg['progress'] < 1.0)
+                                                Positioned.fill(
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.only(
+                                                      topLeft: Radius.circular(isMe ? 16 : (sameAsPrev ? 4 : 16)),
+                                                      topRight: Radius.circular(isMe ? (sameAsPrev ? 4 : 16) : 16),
+                                                      bottomLeft: Radius.circular(isMe ? 16 : (sameAsNext ? 4 : 16)),
+                                                      bottomRight: Radius.circular(isMe ? (sameAsNext ? 4 : 16) : 16),
+                                                    ),
+                                                    child: Container(
+                                                      color: Colors.black54,
+                                                      child: Center(
+                                                        child: CircularProgressIndicator(
+                                                          value: msg['progress'],
+                                                          strokeWidth: 5,
+                                                          color: Colors.blue,
+                                                          backgroundColor: Colors.white30,
                                                         ),
                                                       ),
-                                                      Positioned(
-                                                        right: 4,
-                                                        top: 4,
-                                                        child: GestureDetector(
-                                                          onTap: () {
-                                                            Navigator.of(context).pop(); // 關閉圖片預覽
-                                                          },
-                                                          child: Container(
-                                                            decoration: BoxDecoration(
-                                                              color: Colors.black54,
-                                                              shape: BoxShape.circle,
-                                                            ),
-                                                            padding: const EdgeInsets.all(4),
-                                                            child: const Icon(
-                                                              Icons.close,
-                                                              size: 18,
-                                                              color: Colors.white,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
+                                                    ),
                                                   ),
                                                 ),
-                                              );
-                                            },
-                                            child: ClipRRect(
-                                              borderRadius: BorderRadius.only(
-                                                topLeft: Radius.circular(isMe ? 16 : (sameAsPrev ? 4 : 16)),
-                                                topRight: Radius.circular(isMe ? (sameAsPrev ? 4 : 16) : 16),
-                                                bottomLeft: Radius.circular(isMe ? 16 : (sameAsNext ? 4 : 16)),
-                                                bottomRight: Radius.circular(isMe ? (sameAsNext ? 4 : 16) : 16),
+                                            ],
+                                          )
+                                        : type == 'image'
+                                            ? Stack(
+                                                children: [
+                                                  GestureDetector(
+                                                    onTap: () {
+                                                      showDialog(
+                                                        context: context,
+                                                        builder: (_) => Dialog(
+                                                          backgroundColor: Colors.transparent,
+                                                          insetPadding: const EdgeInsets.all(10),
+                                                          child: Stack(
+                                                            children: [
+                                                              InteractiveViewer(
+                                                                child: CachedNetworkImage(
+                                                                  imageUrl: msg['imageUrl'] ?? '',
+                                                                  fit: BoxFit.contain,
+                                                                  placeholder: (context, url) => const Center(
+                                                                    child: CircularProgressIndicator(),
+                                                                  ),
+                                                                  errorWidget: (context, url, error) => const Icon(
+                                                                    Icons.error,
+                                                                    color: Colors.red,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              Positioned(
+                                                                right: 4,
+                                                                top: 4,
+                                                                child: GestureDetector(
+                                                                  onTap: () {
+                                                                    Navigator.of(context).pop();
+                                                                  },
+                                                                  child: Container(
+                                                                    decoration: BoxDecoration(
+                                                                      color: Colors.black54,
+                                                                      shape: BoxShape.circle,
+                                                                    ),
+                                                                    padding: const EdgeInsets.all(4),
+                                                                    child: const Icon(
+                                                                      Icons.close,
+                                                                      size: 18,
+                                                                      color: Colors.white,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                    child: ClipRRect(
+                                                      borderRadius: BorderRadius.only(
+                                                        topLeft: Radius.circular(isMe ? 16 : (sameAsPrev ? 4 : 16)),
+                                                        topRight: Radius.circular(isMe ? (sameAsPrev ? 4 : 16) : 16),
+                                                        bottomLeft: Radius.circular(isMe ? 16 : (sameAsNext ? 4 : 16)),
+                                                        bottomRight: Radius.circular(isMe ? (sameAsNext ? 4 : 16) : 16),
+                                                      ),
+                                                      child: CachedNetworkImage(
+                                                        imageUrl: msg['imageUrl'] ?? '',
+                                                        width: 180,
+                                                        height: 180,
+                                                        fit: BoxFit.cover,
+                                                        placeholder: (context, url) => Container(
+                                                          width: 180,
+                                                          height: 180,
+                                                          child: const Center(
+                                                            child: CircularProgressIndicator(),
+                                                          ),
+                                                        ),
+                                                        errorWidget: (context, url, error) => const Icon(
+                                                          Icons.error,
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            : Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                decoration: BoxDecoration(
+                                                  color: isMe ? const Color(0xFF89C9C2) : const Color(0xFFF6DBDC),
+                                                  borderRadius: BorderRadius.only(
+                                                    topLeft: Radius.circular(isMe ? 16 : (sameAsPrev ? 4 : 16)),
+                                                    topRight: Radius.circular(isMe ? (sameAsPrev ? 4 : 16) : 16),
+                                                    bottomLeft: Radius.circular(isMe ? 16 : (sameAsNext ? 4 : 16)),
+                                                    bottomRight: Radius.circular(isMe ? (sameAsNext ? 4 : 16) : 16),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  msg['text'] ?? '',
+                                                  style: const TextStyle(fontSize: 14),
+                                                ),
                                               ),
-                                              child: Image.network(
-                                                msg['imageUrl'] ?? '',
-                                                width: 180,
-                                                height: 180,
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                          ),
                                   ),
                                 ),
                               ],
