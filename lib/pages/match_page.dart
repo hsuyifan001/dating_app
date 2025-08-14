@@ -457,6 +457,19 @@ class _MatchPageState extends State<MatchPage> {
     //   }
     // }
 
+    final firestore = FirebaseFirestore.instance;
+    final currentUserId = user!.uid;
+
+    // 儲存 pushed 紀錄
+    await firestore
+        .collection('users')
+        .doc('$currentUserId')
+        .collection('pushed')
+        .doc(targetUserId)
+        .set({
+      'pushedAt': FieldValue.serverTimestamp(),
+    });
+
     // 你可以在這裡實作記錄不喜歡的邏輯，例如加入一個 dislikes collection
     _showNextUser();
   }
