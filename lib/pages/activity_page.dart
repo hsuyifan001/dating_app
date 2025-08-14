@@ -60,9 +60,9 @@ class _ActivityPageState extends State<ActivityPage> {
     if (user != null) {
       currentUserId = user.uid;
     }
-    _fetchAndSaveActivities();
-    fetchAndSaveNTHUActivities();
-    fetchAndSaveHSINActivities();
+    //_fetchAndSaveActivities();
+    //fetchAndSaveNTHUActivities();
+    //fetchAndSaveHSINActivities();
   }
 
   Future<bool> canCreateActivity(String userId) async {
@@ -130,6 +130,7 @@ class _ActivityPageState extends State<ActivityPage> {
 
 
   //URL parser
+  /*
   Future<String> fetchDetailDescriptionIfValid(String url) async {
     try {
       final response = await http.get(Uri.parse(url));
@@ -290,7 +291,7 @@ class _ActivityPageState extends State<ActivityPage> {
       }
     }
   }
-
+*/
   //URL parser end
 
   void _showCreateActivityDialog() {
