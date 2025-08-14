@@ -476,7 +476,7 @@ class _MatchPageState extends State<MatchPage> {
             children: [
               // 圖片
               Image.asset(
-                'assets/photo.png',
+                'assets/match_success.png',
                 fit: BoxFit.contain,
               ),
               // 右上角關閉按鈕
