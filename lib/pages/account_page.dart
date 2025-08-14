@@ -326,10 +326,7 @@ class _AccountPageState extends State<AccountPage> {
     return Container(
       width: screenWidth * (387 / 412),
       height: screenHeight * (694 / 917),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black, width: 2),
-      ),
+      
       child: Stack(
         children: [
           // 個人頭像
@@ -589,50 +586,52 @@ class _AccountPageState extends State<AccountPage> {
     if (isLoading) return const Center(child: CircularProgressIndicator());
 
     return Scaffold(
-      backgroundColor: Colors.grey[200],
-      body: Stack(
-        children: [
-          // 上方標題區塊長方形底色（含陰影、邊框）
-          Positioned(
-            top: screenHeight * (29 / 917),
-            left: (screenWidth - (screenWidth * (387 / 412))) / 2,
-            child: Container(
-              width: screenWidth * (387 / 412),
-              height: screenHeight * (64 / 917),
+      backgroundColor: Color(0xFCD3F8F3),
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 48, 12, 12),
+        child: Column(
+          children: [
+            // 頂部標題區（第二組UI風格）
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color.fromRGBO(255, 200, 202, 1),
-                border: Border.all(color: Colors.black, width: 2),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: const [
+                color: Color(0xFFFFC8CA),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black, width: 1.5),
+                boxShadow: [
                   BoxShadow(
-                    color: Color.fromRGBO(0, 0, 0, 0.25),
-                    offset: Offset(0, 4),
+                    color: Colors.grey.withOpacity(0.1),
                     blurRadius: 4,
-                  ),
+                    offset: const Offset(0, 2),
+                  )
                 ],
               ),
-              // 內部放標題區塊細節UI
               child: buildTitleBlock(screenWidth, screenHeight),
             ),
-          ),
 
-          // 下方個人資料區塊長方形底色
-          Positioned(
-            top: screenHeight * (104 / 917),
-            left: (screenWidth - (screenWidth * (387 / 412))) / 2,
-            child: Container(
-              width: screenWidth * (387 / 412),
-              height: screenHeight * (694 / 917),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.black, width: 2),
-                borderRadius: BorderRadius.circular(10),
+            const SizedBox(height: 12),
+
+            // 聊天室列表外層裝飾容器（第二組UI風格）
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.black, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: buildSelfprofileBlock(screenWidth, screenHeight),
               ),
-              child: buildSelfprofileBlock(screenWidth, screenHeight),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      )
     );
   }
 }
