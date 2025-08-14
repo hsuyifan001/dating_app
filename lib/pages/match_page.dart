@@ -561,25 +561,14 @@ class _MatchPageState extends State<MatchPage> {
 
     // 達到配對上限時顯示的頁面
     if(currentMatchIdx == users.length) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final screenHeight = MediaQuery.of(context).size.height;
+
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/airplane.png',
-              width: 120, // 依需求調整大小
-              height: 120,
-            ),
-            const SizedBox(height: 16), // 圖片與文字間距
-            const Text(
-              '今日已達到配對上限',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ],
+        child: Image.asset(
+          'assets/match_limit.png',
+          width: screenWidth * (0.9), // 依需求調整大小
+          height: screenHeight * (0.9),
         ),
       );
     }
