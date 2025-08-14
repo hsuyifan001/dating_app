@@ -8,7 +8,7 @@ import google.cloud.firestore
 import requests
 from bs4 import BeautifulSoup
 import hashlib
-
+import random
 
 app = initialize_app()
 
@@ -192,3 +192,23 @@ def addmessage(req: https_fn.Request) -> https_fn.Response:
     
 
 """
+@https_fn.on_request() 
+def create_restaurant_activity(req: https_fn.Request)-> https_fn.Response:
+    """Create a new restaurant activity in Firestore.
+    """
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    
+    # Example data, replace with actual data from request
+    restaurant_name = ["全美自助餐" , "素怡園"]
+    restaurant = "中午吃"+restaurant_name[random.randint(0, len(restaurant_name)-1)] 
+    activity=(Activity(restaurant, None, "restaurant", 'https://img.shoplineapp.com/media/image_clips/64ef01e8c27149001420b87e/original.jpg?1693385191'))
+    doc_ref = firestore_client.collection('activities').document(activity.id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        doc_ref.set(activity.to_dict())
+        print(f"add restaurant:  ({activity.id})")
+
+    
+    return https_fn.Response(f"Restaurant activity {activity.id} created successfully.")
+
+

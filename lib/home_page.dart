@@ -42,8 +42,8 @@ class _HomePageState extends State<HomePage> {
           });
         },
         items: [
-          BottomNavigationBarItem(icon: Image.asset('assets/match_icon.png', width: 79, height: 79), label: '動態'),
-          BottomNavigationBarItem(icon: Image.asset('assets/match_icon.png', width: 79, height: 79), label: '活動'),
+          BottomNavigationBarItem(icon: Image.asset('assets/story_icon.png', width: 79, height: 79), label: '動態'),
+          BottomNavigationBarItem(icon: Image.asset('assets/activity_icon.png', width: 79, height: 79), label: '活動'),
           BottomNavigationBarItem(icon: Image.asset('assets/match_icon.png', width: 79, height: 79), label: '配對'),
           BottomNavigationBarItem(icon: Image.asset('assets/chat_icon.png',  width: 79, height: 79), label: '聊天'),
           BottomNavigationBarItem(icon: Image.asset('assets/person_profile_icon.png', width: 79, height: 79), label: '個人資料'),
