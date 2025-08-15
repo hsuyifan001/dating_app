@@ -258,74 +258,47 @@ class _AccountPageState extends State<AccountPage> {
 
   // 新增標題區塊widget
   Widget buildTitleBlock(double screenWidth, double screenHeight) {
-    double pxW(double px) => screenWidth * (px / 412);
-    double pxH(double px) => screenHeight * (px / 917);
+    //double pxW(double px) => screenWidth * (px / 412);
+    //double pxH(double px) => screenHeight * (px / 917);
 
-    return SizedBox(
-      width: pxW(387),
-      height: pxH(64),
-      child: Stack(
-        children: [
-          // Icon 圖片
-          Positioned(
-            left: pxW(7),
-            top: pxH(5),
-            width: pxW(52),
-            height: pxH(52),
-            child: Image.asset('assets/qing.png', fit: BoxFit.contain),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Expanded(
+          flex: 1,
+          child: Image(
+            image: AssetImage('assets/qing.png'),
+            width: 22,
           ),
-
-          // 文字「個人資料」
-          Positioned(
-            left: pxW(25),
-            top: pxH(11),
-            width: pxW(164),
-            height: pxH(41),
-            child: const Center(
-              child: Text(
-                '個人資料',
-                style: TextStyle(
-                  fontFamily: 'Kiwi Maru',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 24,
-                  height: 1,
-                  letterSpacing: 0,
-                  color: Colors.black,
-                ),
-                textAlign: TextAlign.center,
-              ),
+        ),
+        const SizedBox(width: 8),
+        const Expanded(
+          flex: 6,
+          child: Text(
+            "個人資料",
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
             ),
           ),
-
-          // 三個點
-          Positioned(
-            left: pxW(347),
-            top: pxH(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (index) {
-                return Container(
-                  width: pxW(6.35),
-                  height: pxH(6.35),
-                  margin: EdgeInsets.only(bottom: index < 2 ? pxH(8.89) : 0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.black, width: 2),
-                    shape: BoxShape.circle,
-                  ),
-                );
-              }),
-            ),
+        ),
+        Expanded(
+          flex: 1,
+          child: IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.black),
+            onPressed: () {
+              // TODO: 搜尋或更多功能
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget buildSelfprofileBlock(double screenWidth, double screenHeight) {
     return Container(
-      width: screenWidth * (387 / 412),
-      height: screenHeight * (694 / 917),
+      //width: screenWidth * (387 / 412),
+      //height: screenHeight * (694 / 917),
       
       child: Stack(
         children: [
@@ -410,7 +383,7 @@ class _AccountPageState extends State<AccountPage> {
                   letterSpacing: 0,
                   color: Colors.black,
                 ),
-                textAlign: TextAlign.center,
+                textAlign: TextAlign.left,
               ),
             ),
           ),
@@ -432,7 +405,7 @@ class _AccountPageState extends State<AccountPage> {
                   letterSpacing: 0,
                   color: Colors.black,
                 ),
-                textAlign: TextAlign.center,
+                textAlign: TextAlign.left,
               ),
             ),
           ),
@@ -454,7 +427,7 @@ class _AccountPageState extends State<AccountPage> {
                   letterSpacing: 0,
                   color: Colors.black,
                 ),
-                textAlign: TextAlign.center,
+                textAlign: TextAlign.left,
               ),
             ),
           ),
@@ -470,15 +443,19 @@ class _AccountPageState extends State<AccountPage> {
               style: const TextStyle(
                 fontSize: 16,
                 color: Colors.black87,
+                fontWeight: FontWeight.w500,
+                height: 1,
+                letterSpacing: 0,
               ),
+              textAlign: TextAlign.left,
             ),
           ),
           for (int i = 0; i < (tags.length > 6 ? 6 : tags.length); i++)
             Positioned(
-              top: screenHeight * ( (308 + (i ~/ 3) * (39 + 9) )/ 917),
+              top: screenHeight * ( (308 + (i ~/ 3) * (45 + 9) )/ 917),
               left: screenWidth * ( (30 + (i % 3) * (104 + 8) ) / 412),
               width: screenWidth * (104 / 412),
-              height: screenHeight * (39 / 917),
+              height: screenHeight * (45 / 917),
               
               child: Container(
                 alignment: Alignment.center,
@@ -524,17 +501,17 @@ class _AccountPageState extends State<AccountPage> {
                 ),
               ),
             ),
-              child: const Text(
-              '編輯個人資料',
-              style: TextStyle(
-                fontFamily: 'Kiwi Maru',
-                fontWeight: FontWeight.w500,
-                fontSize: 20,
-                height: 1.0, // line-height: 100%
-                letterSpacing: 0.0,
+              child: Text(
+                '編輯個人資料',
+                style: TextStyle(
+                  fontFamily: 'Kiwi Maru',
+                  fontWeight: FontWeight.w500,
+                  fontSize: screenWidth * (20 / 412),
+                  height: 1.0, // line-height: 100%
+                  letterSpacing: 0.0,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
             ),
           ),
 
