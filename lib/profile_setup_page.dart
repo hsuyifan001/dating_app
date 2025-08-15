@@ -7,7 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
-
+import 'package:flutter/services.dart';
+import 'package:dropdown_search/dropdown_search.dart';
+import 'dart:async';
 
 class ProfileSetupPage extends StatefulWidget {
 
@@ -17,178 +19,61 @@ class ProfileSetupPage extends StatefulWidget {
   State<ProfileSetupPage> createState() => _ProfileSetupPageState();
 }
 
-// class _TagAlignData {
-//   final String text;
-//   final double dx; // -1 ~ 1
-//   final double dy; // -1 ~ 1
-//   final Color borderColor;
-//   const _TagAlignData(this.text, this.dx, this.dy, this.borderColor);
-// }
+// 自訂 TextInputFormatter，根據字元寬度限制輸入
+class WidthLimitingTextInputFormatter extends TextInputFormatter {
+  final double maxWidth; // 最大寬度（像素）
+  final double chineseCharWidth; // 中文字寬度
+  final double numberWidth; // 數字寬度
+  final double letterWidth; // 英文字平均寬度
+  final double spaceWidth; // 空格寬度
+  final VoidCallback? onWidthExceeded; // 超過寬度時的回調
+  Timer? _debounceTimer; // 防抖計時器
 
-class CloudPainter extends CustomPainter {
-  final Color fillColor;
-  final Color borderColor;
-  final bool shadow;
-  final double borderScale; // 邊框放大比例（通常 1.06）
-
-  CloudPainter({
-    required this.fillColor,
-    required this.borderColor,
-    this.shadow = false,
-    this.borderScale = 1.3,
-  });
-
-  final List<_Circle> circles = [
-    _Circle(0.286, 0.556, 0.107),
-    _Circle(0.429, 0.417, 0.125),
-    _Circle(0.571, 0.417, 0.107),
-    _Circle(0.714, 0.556, 0.107),
-    _Circle(0.429, 0.694, 0.107),
-    _Circle(0.571, 0.694, 0.125),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-
-    // 下層：深色邊框雲朵（略放大）
-    final Paint borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.fill;
-
-    for (final c in circles) {
-      final center = Offset(size.width * c.dx, size.height * c.dy);
-      final radius = size.width * c.ratio * borderScale;
-      canvas.drawCircle(center, radius, borderPaint);
-    }
-
-    // 上層：正常填色雲朵
-    final Paint fillPaint = Paint()
-      ..color = fillColor
-      ..style = PaintingStyle.fill;
-
-    for (final c in circles) {
-      final center = Offset(size.width * c.dx, size.height * c.dy);
-      final radius = size.width * c.ratio;
-      canvas.drawCircle(center, radius, fillPaint);
-    }
-
-    // （可選）陰影
-    if (shadow) {
-      final path = Path();
-      for (final c in circles) {
-        final center = Offset(size.width * c.dx, size.height * c.dy);
-        final radius = size.width * c.ratio;
-        path.addOval(Rect.fromCircle(center: center, radius: radius));
-      }
-      canvas.drawShadow(path, Colors.black26, 4.0, true);
-    }
-  }
-
-  @override
-  bool hitTest(Offset position) {
-    // 只要點擊位置落在任何一個圓形內，就回傳 true
-    for (final c in circles) {
-      final center = Offset(160 * c.dx, 90 * c.dy); // 點擊判定，若改圖的大小記得改
-      final radius = 160 * c.ratio * borderScale;
-
-      if ((position - center).distance <= radius) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => true;
-}
-
-class _Circle {
-  final double dx;
-  final double dy;
-  final double ratio;
-
-  const _Circle(this.dx, this.dy, this.ratio);
-}
-
-class CloudButtonPainted extends StatefulWidget {
-  final String text;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final Color borderColor;
-
-  const CloudButtonPainted({
-    super.key,
-    required this.text,
-    required this.onTap,
-    required this.isSelected,
-    required this.borderColor,
+  WidthLimitingTextInputFormatter({
+    required this.maxWidth,
+    this.chineseCharWidth = 20.0,
+    this.numberWidth = 10.9,
+    this.letterWidth = 12.0,
+    this.spaceWidth = 8.0,
+    this.onWidthExceeded,
   });
 
   @override
-  State<CloudButtonPainted> createState() => _CloudButtonPaintedState();
-}
-
-class _CloudButtonPaintedState extends State<CloudButtonPainted>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller =
-        AnimationController(duration: const Duration(milliseconds: 150), vsync: this);
-    _scale = Tween<double>(begin: 1.0, end: 1.1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    double totalWidth = _calculateWidth(newValue.text);
+    if (totalWidth > maxWidth) {
+      // 超過寬度，觸發回調並保持舊值
+      if (_debounceTimer?.isActive ?? false) {
+        _debounceTimer!.cancel();
+      }
+      _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+        onWidthExceeded?.call();
+      });
+      return oldValue;
+    }
+    _debounceTimer?.cancel(); // 取消防抖計時器
+    return newValue; // 允許輸入
   }
 
-  void _handleTap() {
-    _controller.forward().then((_) {
-      _controller.reverse();
-      widget.onTap();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _handleTap,
-      child: ScaleTransition(
-        scale: _scale,
-        child: CustomPaint(
-          painter: CloudPainter(
-            fillColor: widget.isSelected ? Colors.orange.shade300 : Colors.white,
-            borderColor: widget.borderColor,
-            shadow: true,
-          ),
-          child: Container(
-            width: 160,
-            height: 90,
-            alignment: Alignment.center,
-            child: Text(
-              widget.text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: widget.isSelected ? Colors.white : Colors.black87,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+  double _calculateWidth(String text) {
+    double totalWidth = 0.0;
+    for (var char in text.runes) {
+      String charStr = String.fromCharCode(char);
+      if (RegExp(r'[\u4e00-\u9fa5]').hasMatch(charStr)) {
+        totalWidth += chineseCharWidth; // 中文字
+      } else if (RegExp(r'[0-9]').hasMatch(charStr)) {
+        totalWidth += numberWidth; // 數字
+      } else if (RegExp(r'[a-zA-Z]').hasMatch(charStr)) {
+        totalWidth += letterWidth; // 英文
+      } else if (charStr == ' ') {
+        totalWidth += spaceWidth; // 空格
+      }
+    }
+    return totalWidth;
   }
 }
 
-class _ProfileSetupPageState extends State<ProfileSetupPage> {
+class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerProviderStateMixin {
   File? _selectedImage;
 
   // final List<_TagAlignData> tags = [
@@ -266,6 +151,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
   bool _isUploadingPhoto = false;
   Set<String> matchSchools = {};
   bool? matchSameDepartment;
+  final FocusNode _nameFocusNode = FocusNode(); // 添加 FocusNode
 
   final TextEditingController customSportController = TextEditingController();
   final TextEditingController customPetController = TextEditingController();
@@ -297,18 +183,103 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     '大一', '大二', '大三', '大四', '碩士', '博士', '畢業',
   ];
   final List<String> departmentList = [
-    '電機系', '資工系', '化工系', '機械系', '生醫系', '材料系',
-    '物理系', '化學系', '數學系', '生物系', '心理系', '社會系',
+    // 交大科系
+    '外國語文學系', '人文社會學系', '傳播與科技學系', '管理科學系', '資訊管理與財務金融學系', '工業工程與管理學系',
+    '運輸與物流管理學系', '生物科技學系', '應用化學系', '電子物理學系', '理學院科學學士學位學程', '應用數學系',
+    '電機工程學系', '光電工程學系', '資訊工程學系', '機械工程學系', '土木工程學系', '材料科學與工程學系',
+    '半導體工程學系', '百川學士學位學程', '學士班大一大二不分系', '生物醫學工程學系', '物理治療暨輔助科技學系',
+    '醫學生物技術暨檢驗學系', '生物醫學影像暨放射科學系','醫學系', '中醫學系', '護理學系', '牙醫學系', '藥學系',
+    '生命科學系暨基因體科學研究所',
+    // 清大科系補充
+    '中國文學系', '人文社會學院學士班', '教育與學習科技學系', '幼兒教育學系', '特殊教育學系', '教育心理與諮商學系',
+    '英語教學系', '運動科學系', '竹師教育學院學士班', '經濟學系', '科技管理學院學士班', '計量財務金融學系', 
+    '數學系', '物理學系', '化學系', '理學院學士班', '生醫工程與環境科學系', '工程與系統科學系', '原子科學院學士班',
+    '化學工程學系', '動力機械工程學系', '工業工程與工程管理學系', '材料科學工程學系', '工學院學士班', // 兩校材料系名稱差一個字
+    '電機資訊學院學士班', '生命科學系', '醫學科學系', '生命科學暨醫學院學士班', '藝術與設計學系', '藝術學院學士班',
   ];
 
-
-  void _nextPage() async {    
-    // ✅ 延遲一點點再 unfocus，避免鍵盤閃爍
+  void showAutoDismissDialog(String message) {
     FocusScope.of(context).unfocus();
+    print('顯示提示: $message');
+    // 在顯示新 Dialog 前關閉舊 Dialog
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true, // 允許點擊背景，但避免立即關閉
+      barrierLabel: '', // 避免無障礙標籤問題
+      barrierColor: Colors.transparent, // 透明背景
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+          child: child,
+        );
+      },
+    );
+    FocusScope.of(context).unfocus();
+  }
+
+  void _nextPage() async {
+    // 確保所有輸入欄位失去焦點
+    FocusScope.of(context).requestFocus(FocusNode());
     
     if (_currentPage == 0) {
       final name = nameController.text.trim();
-      if (name.isEmpty) return;
+      if (_selectedImage == null) {
+        showAutoDismissDialog('請上傳照片');
+        return;
+      }
+      if (name.isEmpty) {
+        showAutoDismissDialog('請輸入名字');
+        return;
+      }
+      if (gender == null) {
+        showAutoDismissDialog('請選擇性別');
+        return;
+      }
+      if (matchgender.isEmpty) {
+        showAutoDismissDialog('請選擇想要配對的性別');
+        return;
+      }
+
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (_) => AlertDialog(
@@ -324,17 +295,51 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     }
     else if (_currentPage == 1) {
       if (matchSchools.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('請至少選擇一所學校')),
-        );
+        showAutoDismissDialog('請至少選擇一所學校');
         return;
       }
     }
     else if (_currentPage == 2) {
       if (selectedTags.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('請至少選擇一個標籤')),
-        );
+        showAutoDismissDialog('請至少選擇一個標籤');
+        return;
+      }
+    }
+    else if (_currentPage == 3) {
+      if (selectedHabits.isEmpty) {
+        showAutoDismissDialog('請至少選擇一個興趣');
+        return;
+      }
+      if (selectedMBTI == null) {
+        showAutoDismissDialog('請選擇 MBTI');
+        return;
+      }
+      if (selectedZodiac == null) {
+        showAutoDismissDialog('請選擇星座');
+        return;
+      }
+      if (birthdayController.text.trim().isEmpty) {
+        showAutoDismissDialog('請輸入生日');
+        return;
+      }
+      if (heightController.text.trim().isEmpty) {
+        showAutoDismissDialog('請輸入身高');
+        return;
+      }
+      if (selectededucationLevels == null) {
+        showAutoDismissDialog('請選擇在學狀態');
+        return;
+      }
+      if (selectedDepartment == null) {
+        showAutoDismissDialog('請選擇科系');
+        return;
+      }
+      if (matchSameDepartment == null) {
+        showAutoDismissDialog('請選擇是否與同系配對');
+        return;
+      }
+      if (selfIntroController.text.trim().isEmpty) {
+        showAutoDismissDialog('請輸入自我介紹');
         return;
       }
     }
@@ -342,7 +347,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     if (_currentPage < 3) {
       setState(() => _currentPage++);
       await _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-      FocusScope.of(context).unfocus(); // 換頁的時候關鍵盤(避免更改到前一頁的內容)
+      // FocusScope.of(context).unfocus(); // 換頁的時候關鍵盤(避免更改到前一頁的內容)
+      FocusScope.of(context).requestFocus(FocusNode()); // 確保換頁後無焦點
     } else {
       _submit();
     }
@@ -352,6 +358,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     if (_currentPage > 0) {
       setState(() => _currentPage--);
       _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      FocusScope.of(context).requestFocus(FocusNode()); // 確保換頁後無焦點
     }
   }
 
@@ -412,6 +419,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     selfIntroController.dispose();
     customSportController.dispose();
     customPetController.dispose();
+    _nameFocusNode.dispose();
     super.dispose();
   }
 
@@ -453,7 +461,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   Expanded(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque, // 讓空白處也能偵測點擊
-                      onTap: () => FocusScope.of(context).unfocus(),
+                      onTap: () {
+                        FocusScope.of(context).requestFocus(FocusNode()); // 明確移除焦點
+                      },
                       child: PageView(
                         controller: _pageController,
                         physics: const NeverScrollableScrollPhysics(),
@@ -683,9 +693,25 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
           child: SizedBox(
             width: 280, // 控制寬度
             child: TextField(
+              focusNode: _nameFocusNode,
               autofocus: false,
               controller: nameController,
               textAlign: TextAlign.center,
+              maxLines: 1, // 禁止換行
+              inputFormatters: [
+                WidthLimitingTextInputFormatter(
+                  maxWidth: 10.0, // 約 5 個中文字的寬度
+                  chineseCharWidth: 2.0,
+                  numberWidth: 1.0,
+                  letterWidth: 1.0,
+                  spaceWidth: 8.0,
+                  onWidthExceeded: () => showAutoDismissDialog('名字最多5個中文字\n數字、英文視作半個中文字'),
+                ),
+                FilteringTextInputFormatter.allow(
+                  RegExp(r'[a-zA-Z0-9\u4e00-\u9fa5 ]'), // 允許中英文、數字、空格
+                ),
+                FilteringTextInputFormatter.deny(RegExp(r'\n')), // 禁止換行
+              ],
               decoration: InputDecoration(
                 hintText: '輸入名字',
                 contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
@@ -701,7 +727,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(40),
-                  borderSide: const BorderSide(color: const Color(0xFF1B578B), width: 3),
+                  borderSide: const BorderSide(color: Color(0xFF1B578B), width: 3),
                 ),
               ),
             ),
@@ -1071,26 +1097,37 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
         const SizedBox(height: 24),
         const Text('系所'),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: selectedDepartment, // 當前選擇的值
-          items: departmentList.map((department) {
-            return DropdownMenuItem<String>(
-              value: department,
-              child: Text(department),
-            );
-          }).toList(),
+        DropdownSearch<String>(
+          popupProps: PopupProps.menu(
+            showSearchBox: true, // 啟用搜尋欄
+            searchFieldProps: TextFieldProps(
+              decoration: InputDecoration(
+                hintText: '輸入系所名稱搜尋',
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            fit: FlexFit.loose, // 確保選單適應內容
+            constraints: BoxConstraints(maxHeight: 300), // 限制選單高度
+          ),
+          items: departmentList, // 你的系所列表
+          selectedItem: selectedDepartment, // 當前選擇的值
           onChanged: (value) {
             setState(() {
-              selectedDepartment = value!;
+              selectedDepartment = value!; // 更新選擇的值
             });
           },
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+          dropdownDecoratorProps: DropDownDecoratorProps(
+            dropdownSearchDecoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              hintText: '請選擇系所',
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
-          hint: const Text('請選擇系所'),
         ),
 
         const SizedBox(height: 24),
