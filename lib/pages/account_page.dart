@@ -537,7 +537,6 @@ class _AccountPageState extends State<AccountPage> {
                 ),
               ),
               child: FittedBox(
-                fit: BoxFit.scaleDown,
                 child: const Text(
                   '登出',
                   style: TextStyle(
