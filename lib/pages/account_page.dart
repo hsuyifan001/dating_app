@@ -471,15 +471,17 @@ class _AccountPageState extends State<AccountPage> {
                     ),
                   ],
                 ),
-                child: Text(
-                  tags[i].toString(),
-                  style: const TextStyle(
-                    color: Colors.pink,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 16,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    tags[i].toString(),
+                    style: const TextStyle(
+                      color: Colors.pink,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+               ),
               ),
             ),
           // 編輯個人資料按鈕
@@ -534,18 +536,22 @@ class _AccountPageState extends State<AccountPage> {
                   ),
                 ),
               ),
-              child: const Text(
-                '登出',
-                style: TextStyle(
-                  color: Color.fromRGBO(246, 157, 158, 1),
-                  fontFamily: 'Kiwi Maru',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 20,
-                  height: 1.0, // line-height: 100%
-                  letterSpacing: 0.0,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: const Text(
+                  '登出',
+                  style: TextStyle(
+                    color: Color.fromRGBO(246, 157, 158, 1),
+                    fontFamily: 'Kiwi Maru',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 20,
+                    height: 1.0, // line-height: 100%
+                    letterSpacing: 0.0,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
+              )
+              
             ),
           ),
           
