@@ -744,14 +744,17 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
                       final count = commentCountSnap.hasData
                           ? commentCountSnap.data!.docs.length
                           : 0;
-                      return Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.comment),
-                            onPressed: () => _showComments(userId, storyId),
-                          ),
-                          Text('$count'),
-                        ],
+                      return 
+                        Expanded(
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.comment),
+                                onPressed: () => _showComments(userId, storyId),
+                              ),
+                              Text('$count'),
+                            ],
+                          )
                       );
                     },
                   ),
