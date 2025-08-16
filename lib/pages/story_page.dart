@@ -5,9 +5,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
+
 
 class StoryPage extends StatefulWidget {
   const StoryPage({Key? key}) : super(key: key);
@@ -72,107 +74,140 @@ class _StoryPageState extends State<StoryPage> {
   }
 
 
-  void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) async {
-    final textController = TextEditingController(text: existingData?['text'] ?? '');
-    final ImagePicker picker = ImagePicker();
-    List<XFile> images = [];
+void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) async {
+  final textController = TextEditingController(text: existingData?['text'] ?? '');
+  final ImagePicker picker = ImagePicker();
+  List<XFile> images = [];
+  int step = 0; // 0 = 選圖片, 1 = 輸入文字
 
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
+  await showDialog(
+    context: context,
+    builder: (_) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
         title: Text(storyId == null ? '新增動態' : '編輯動態'),
-        content: StatefulBuilder(
-          builder: (context, setState) => SingleChildScrollView(
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: textController,
-                  decoration: const InputDecoration(hintText: '說點什麼吧'),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () async {
-                    final picked = await picker.pickMultiImage();
-                    if (picked.isNotEmpty) {
-                      setState(() => images = picked);
-                    }
-                  },
-                  child: const Text('選擇圖片'),
-                ),
-                if (images.isNotEmpty)
-                  Wrap(
-                    spacing: 8,
-                    children: images
-                        .map((img) => Image.file(File(img.path), width: 80, height: 80))
-                        .toList(),
+                if (step == 0) ...[
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final picked = await picker.pickMultiImage();
+                      if (picked.isNotEmpty) {
+                        setState(() => images = picked);
+                      }
+                    },
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('選擇圖片'),
                   ),
+                  const SizedBox(height: 10),
+                  if (images.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: images
+                          .map((img) => Image.file(File(img.path), width: 80, height: 80))
+                          .toList(),
+                    ),
+                ],
+                if (step == 1) ...[
+                  if (images.isNotEmpty)
+                    SizedBox(
+                      height: 150,
+                      child: PageView(
+                        children: images
+                            .map((img) => Image.file(File(img.path), fit: BoxFit.cover))
+                            .toList(),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: textController,
+                    decoration: const InputDecoration(
+                      hintText: '寫下文字內容...',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                ],
               ],
             ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
           TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              List<String> uploadedUrls = [];
-
-              for (var img in images) {
-                // 1️⃣ 壓縮圖片
-                final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
-                  img.path,
-                  minWidth: 800,  // 解析度限制
-                  minHeight: 800,
-                  quality: 70,    // 壓縮品質
-                  format: CompressFormat.jpeg,
-                );
-              
-                if (compressedImage == null) {
-                  throw Exception('壓縮圖片失敗');
-                }
-              
-                // 2️⃣ 上傳壓縮後的圖片
-                final ref = FirebaseStorage.instance.ref(
-                  'story_images/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg',
-                );
-              
-                await ref.putData(
-                  compressedImage,
-                  SettableMetadata(contentType: 'image/jpeg'),
-                );
-              
-                // 3️⃣ 取得下載 URL
-                uploadedUrls.add(await ref.getDownloadURL());
-              }
-
-              final storyData = {
-                'text': textController.text.trim(),
-                'photoUrls': uploadedUrls.isNotEmpty ? uploadedUrls : (existingData?['photoUrls'] ?? []),
-                'timestamp': FieldValue.serverTimestamp(),
-                'likes': existingData?['likes'] ?? [],
-                'comments': existingData?['comments'] ?? [],
-              };
-
-              final userStoriesRef = FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(currentUser.uid)
-                  .collection('stories');
-
-              if (storyId == null) {
-                await userStoriesRef.add(storyData);
-              } else {
-                await userStoriesRef.doc(storyId).update(storyData);
-              }
-
-              _loadStories();
-            },
-            child: const Text('發布'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
           ),
+          if (step == 0)
+            TextButton(
+              onPressed: images.isNotEmpty
+                  ? () => setState(() => step = 1)
+                  : null, // 一定要有圖片才能進入下一步
+              child: const Text('下一步'),
+            ),
+          if (step == 1)
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                List<String> uploadedUrls = [];
+
+                for (var img in images) {
+                  final Uint8List? compressedImage =
+                      await FlutterImageCompress.compressWithFile(
+                    img.path,
+                    minWidth: 800,
+                    minHeight: 800,
+                    quality: 70,
+                    format: CompressFormat.jpeg,
+                  );
+
+                  if (compressedImage == null) {
+                    throw Exception('壓縮圖片失敗');
+                  }
+
+                  final ref = FirebaseStorage.instance.ref(
+                    'story_images/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg',
+                  );
+
+                  await ref.putData(
+                    compressedImage,
+                    SettableMetadata(contentType: 'image/jpeg'),
+                  );
+
+                  uploadedUrls.add(await ref.getDownloadURL());
+                }
+
+                final storyData = {
+                  'text': textController.text.trim(),
+                  'photoUrls': uploadedUrls,
+                  'timestamp': FieldValue.serverTimestamp(),
+                  'likes': existingData?['likes'] ?? [],
+                  'comments': existingData?['comments'] ?? [],
+                };
+
+                final userStoriesRef = FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(currentUser.uid)
+                    .collection('stories');
+
+                if (storyId == null) {
+                  await userStoriesRef.add(storyData);
+                } else {
+                  await userStoriesRef.doc(storyId).update(storyData);
+                }
+
+                _loadStories();
+              },
+              child: const Text('發布'),
+            ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   void _toggleLike(String userId, String storyId, List likes) async {
     final ref = FirebaseFirestore.instance
@@ -191,51 +226,264 @@ class _StoryPageState extends State<StoryPage> {
     _loadStories();
   }
 
-  void _addComment(String storyOwnerId, String storyId) async {
-    final commentController = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('新增留言'),
-        content: TextField(
-          controller: commentController,
-          decoration: const InputDecoration(hintText: '輸入留言'),
-          maxLines: 3,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-          TextButton(
-            onPressed: () async {
-              final text = commentController.text.trim();
-              if (text.isEmpty) {
-                Navigator.pop(context);
-                return;
-              }
-              Navigator.pop(context);
+  void _showComments(String storyOwnerId, String storyId) {
+  final commentController = TextEditingController();
 
-              final commentRef = FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(storyOwnerId)
-                  .collection('stories')
-                  .doc(storyId)
-                  .collection('comment') // 使用子集合 'comment'
-                  .doc(); // auto id
-
-              await commentRef.set({
-                'userId': currentUser.uid,
-                'text': text,
-                'timestamp': FieldValue.serverTimestamp(),
-              });
-
-              // 留言是透過 StreamBuilder 顯示，所以不需要呼叫 _loadStories()
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('留言已送出')));
-            },
-            child: const Text('送出'),
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent, // 外框透明
+    builder: (context) {
+      return SingleChildScrollView(
+      // 填充底部間距（鍵盤高度）
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child:Container(
+        height: MediaQuery.of(context).size.height * (633 / 917), // 按比例縮放
+        width: MediaQuery.of(context).size.width * (412 / 412),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(45),
+            topRight: Radius.circular(45),
           ),
-        ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- 標題區 ---
+            Container(
+              margin: const EdgeInsets.only(top: 15, left: 30),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: const Text(
+                "留言",
+                style: TextStyle(
+                  fontFamily: "Kiwi Maru",
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                  color: Color.fromRGBO(246, 157, 158, 1),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // --- 留言清單 ---
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.only(top: 0, left: 13),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(storyOwnerId)
+                      .collection('stories')
+                      .doc(storyId)
+                      .collection('comment')
+                      .orderBy('timestamp', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const SizedBox();
+                    }
+                    final comments = snapshot.data!.docs;
+
+                    return ListView(
+                      children: comments.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final commentUserId = data['userId'] as String;
+                        final text = data['text'] ?? '';
+                        final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
+
+                        return FutureBuilder<DocumentSnapshot>(
+                          future: FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(commentUserId)
+                              .get(),
+                          builder: (context, userSnap) {
+                            if (!userSnap.hasData) {
+                              return const SizedBox();
+                            }
+                            final userData = userSnap.data!.data() as Map<String, dynamic>;
+                            final name = userData['name'] ?? '未知用戶';
+                            final photoUrl = userData['photoUrl'];
+
+                            return ListTile(
+                              leading: Container(
+                                width: 48,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color.fromRGBO(255, 200, 202, 1),
+                                    width: 3,
+                                  ),
+                                  image: DecorationImage(
+                                    image: photoUrl != null
+                                        ? NetworkImage(photoUrl)
+                                        : const AssetImage('assets/match_default.jpg') as ImageProvider,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontFamily: 'Kiwi Maru',
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                  height: 1.0,
+                                  letterSpacing: 0,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              subtitle: Text(
+                                text,
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 14,
+                                  height: 1.4,
+                                  color: Color.fromRGBO(0, 0, 0, 0.5),
+                                ),
+                              ),
+                              trailing: timestamp != null
+                                  ? Text(
+                                      timeago.format(timestamp),
+                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    )
+                                  : null,
+                            );
+                          },
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+            // --- 固定在底部的輸入留言框 ---
+            Container(
+              height: 109,
+              width: double.infinity,
+              color: const Color.fromRGBO(211, 248, 243, 0.99),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(currentUser.uid)
+                        .get(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const CircleAvatar(
+                          radius: 24,
+                          backgroundColor: Colors.grey,
+                        );
+                      }
+                      final userData = snapshot.data!.data() as Map<String, dynamic>;
+                      final photoUrl = userData['photoUrl'];
+
+                      return Container(
+                        width: 48,
+                        height: 48,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFFFC8CA), width: 3),
+                          borderRadius: BorderRadius.circular(24),
+                          image: photoUrl != null
+                              ? DecorationImage(
+                                  image: NetworkImage(photoUrl),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                          color: Colors.grey[300], // fallback
+                        ),
+                      );
+                    },
+                  ),
+
+                  Expanded(
+                    child: Container(
+                        //width: 268,   // CSS width: 268px
+                        height: 49,   // CSS height: 49px
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF6DBDC),                                           // background: #F6DBDC
+                          border: Border.all(color: Colors.black.withOpacity(0.5), width: 2),  // border: 2px solid rgba(0,0,0,0.5)
+                          borderRadius: BorderRadius.circular(100),                           // border-radius: 100px
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),     // 內邊距
+                        child: Align(
+                          alignment: Alignment.centerLeft,      // 文字靠左＋垂直置中
+                          child: TextField(
+                            controller: commentController,
+                            textAlignVertical: TextAlignVertical.center,
+                            decoration: const InputDecoration(
+                              hintText: '輸入留言...',
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+
+                      ),
+
+                  ),
+                  Container(
+                    width: 57,
+                    height: 59,
+                    margin: const EdgeInsets.only(left: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD1F5F1),                             // 背景 #D1F5F1
+                      border: Border.all(color: Colors.black.withOpacity(0.5), width: 2),  
+                      borderRadius: BorderRadius.all(
+                        Radius.elliptical(57 / 2, 59 / 2),                         // 橢圓半徑
+                      ),
+                    ),
+                    child: Center(
+                      child:IconButton(
+                        icon:  Image.asset(
+                          'assets/airplane.png',
+                          width: 51,     // 可依需求調整
+                          height: 51,
+                          fit: BoxFit.contain,
+                        ),
+
+                        onPressed: () async {
+                          final text = commentController.text.trim();
+                          if (text.isEmpty) return;
+
+                          commentController.clear();
+                          final commentRef = FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(storyOwnerId)
+                              .collection('stories')
+                              .doc(storyId)
+                              .collection('comment')
+                              .doc();
+
+                          await commentRef.set({
+                            'userId': currentUser.uid,
+                            'text': text,
+                            'timestamp': FieldValue.serverTimestamp(),
+                          });
+                        },
+                      ),
+                    )
+                  ),
+                  
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+      );
+    },
+  );
+}
+
 
   void _deleteStory(String storyId) async {
     await FirebaseFirestore.instance
@@ -376,7 +624,7 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
                                   photoUrls[index],
                                   width: screenWidth * (370 / 412),
                                   height: screenHeight * (358 / 917),
-                                  fit: BoxFit.cover,
+                                  fit: BoxFit.contain,
                                 ),
                               );
                             },
@@ -470,6 +718,7 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
 
               const Spacer(),
 
+              
               // 按讚與留言
               Row(
                 children: [
@@ -483,7 +732,6 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
                     onPressed: () => _toggleLike(userId, storyId, likes),
                   ),
                   Text('${likes.length}'),
-
                   StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('users')
@@ -500,13 +748,15 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.comment),
-                            onPressed: () => _addComment(userId, storyId),
+                            onPressed: () => _showComments(userId, storyId),
                           ),
                           Text('$count'),
                         ],
                       );
                     },
                   ),
+                  
+                  
                 ],
               ),
             ],
