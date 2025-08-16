@@ -428,12 +428,12 @@ class _MatchPageState extends State<MatchPage> {
             'matchedAt': timestamp,
           }),
         ]);
-
+        
         // 發送推播通知
         await sendPushNotification(
           targetUserId: targetUserId,
           title: '配對成功！',
-          body: '你和某人配對成功了，快去聊聊吧 💕',
+          body: '你和 ${targetUserDoc['name'] ?? '某人'} 配對成功了，快去聊聊吧 💕',
           data: {
             'type': 'match',
             'chatRoomId': _getMatchRoomId(currentUserId, targetUserId), // 假設聊天室 ID 格式
