@@ -11,7 +11,6 @@ import 'dart:typed_data';
 import 'dart:async';
 // import 'package:path_provider/path_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_functions/cloud_functions.dart'; // 測試用
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -120,43 +119,6 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     setState(() => _isLoading = false);
-  }
-
-  // 用於測試推播通知
-  Future<void> sendPushNotification({
-    required String targetUserId,
-    required String title,
-    required String body,
-    Map<String, String>? data,
-  }) async {
-    try {
-      // 1. 取得目標用戶的 FCM 權杖
-      final firestore = FirebaseFirestore.instance;
-      final targetUserDoc = await firestore.collection('users').doc(targetUserId).get();
-      final fcmToken = targetUserDoc.data()?['fcmToken'] as String?;
-
-      if (fcmToken == null || fcmToken.isEmpty) {
-        print('目標用戶 ($targetUserId) 無有效的 FCM 權杖');
-        return;
-      }
-
-      // 2. 呼叫 Cloud Functions 的 sendNotification
-      final callable = FirebaseFunctions.instance.httpsCallable('sendNotification');
-      await callable.call({
-        'fcmToken': fcmToken,
-        'title': title,
-        'body': body,
-        'data': data ?? {},
-      });
-
-      print('推播通知已發送給用戶 $targetUserId: $title - $body');
-    } catch (e) {
-      print('發送推播通知失敗: $e');
-    }
-  }
-  String _getMatchRoomId(String id1, String id2) {
-    final ids = [id1, id2]..sort();
-    return ids.join('_');
   }
 
   @override
