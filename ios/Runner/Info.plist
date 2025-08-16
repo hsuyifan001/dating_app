@@ -8,6 +8,14 @@
 	<string>我們需要使用相機拍攝您的照片</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>我們需要儲存拍攝的照片到相簿</string>
+	<!-- 添加推播通知權限描述 -->
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>允許陽青椒發送通知以提醒您新訊息或配對成功</string>
+	<!-- 啟用背景模式以處理推播通知 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

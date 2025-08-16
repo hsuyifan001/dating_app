@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart'; // for DateFormat
 import 'dart:async';
 import 'dart:math';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class MatchPage extends StatefulWidget {
   const MatchPage({super.key});
@@ -427,10 +428,18 @@ class _MatchPageState extends State<MatchPage> {
             'matchedAt': timestamp,
           }),
         ]);
-      }());
 
-      // 發送推播通知
-      // sendPushNotification(targetUserId, '配對成功！');
+        // 發送推播通知
+        await sendPushNotification(
+          targetUserId: targetUserId,
+          title: '配對成功！',
+          body: '你和某人配對成功了，快去聊聊吧 💕',
+          data: {
+            'type': 'match',
+            'chatRoomId': _getMatchRoomId(currentUserId, targetUserId), // 假設聊天室 ID 格式
+          },
+        );
+      }());
 
       // 彈窗關閉後才換下一個人
       _showNextUser();
@@ -508,6 +517,38 @@ class _MatchPageState extends State<MatchPage> {
     );
   }
 
+  Future<void> sendPushNotification({
+    required String targetUserId,
+    required String title,
+    required String body,
+    Map<String, String>? data,
+  }) async {
+    try {
+      // 1. 取得目標用戶的 FCM 權杖
+      final firestore = FirebaseFirestore.instance;
+      final targetUserDoc = await firestore.collection('users').doc(targetUserId).get();
+      final fcmToken = targetUserDoc.data()?['fcmToken'] as String?;
+
+      if (fcmToken == null || fcmToken.isEmpty) {
+        print('目標用戶 ($targetUserId) 無有效的 FCM 權杖');
+        return;
+      }
+
+      // 2. 呼叫 Cloud Functions 的 sendNotification
+      final callable = FirebaseFunctions.instance.httpsCallable('sendNotification');
+      await callable.call({
+        'fcmToken': fcmToken,
+        'title': title,
+        'body': body,
+        'data': data ?? {},
+      });
+
+      print('推播通知已發送給用戶 $targetUserId: $title - $body');
+    } catch (e) {
+      print('發送推播通知失敗: $e');
+    }
+  }
+
   Future<void> createChatRoom(String userA, String userB) async {
     final chatId = _getMatchRoomId(userA, userB); // 兩個 uid 排序後組成唯一 id
 
@@ -525,7 +566,7 @@ class _MatchPageState extends State<MatchPage> {
         'members': [userA, userB],
         'type': 'match',
         'createdAt': FieldValue.serverTimestamp(),
-        'lastMessage': '',
+        'lastMessage': '配對成功',
         'lastMessageTime': FieldValue.serverTimestamp(),
 
         // 對每個成員儲存對方的名字
