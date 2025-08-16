@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class ProfileSetupPage extends StatefulWidget {
 
@@ -395,6 +396,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
       'photoUrl': _photoUrl, // ✅ 加這行
       'selfIntro': selfIntroController.text.trim(),
       'createdAt': FieldValue.serverTimestamp(),
+      // 'fcmToken': await FirebaseMessaging.instance.getToken(),
     };
 
     /*if (_selectedImage != null) {
@@ -405,6 +407,19 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
     }*/
     
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set(profileData);
+
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+          {'fcmToken': fcmToken},
+          SetOptions(merge: true), // 使用 merge 避免覆蓋其他欄位
+        );
+        print('FCM 權杖已儲存到 Firestore: $fcmToken');
+      }
+    } catch (e) {
+      print('儲存 FCM 權杖失敗: $e');
+    }
 
     if (context.mounted) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
