@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
@@ -520,7 +520,7 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
 
       return Container(
         width: cardWidth,
-        height: cardHeight,
+        //height: cardHeight,
         margin: const EdgeInsets.only(bottom: 11),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -530,6 +530,7 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 使用者資訊列
@@ -580,7 +581,7 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
                         ),
                     ],
                   ),
-                  const Spacer(),
+                  //const Spacer(),
                   if (userId == currentUser.uid)
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.more_horiz),
@@ -700,23 +701,9 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
 
               const SizedBox(height: 12),
 
-              // 文字內容
-              if (text.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    text,
-                    style: const TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 14,
-                      height: 1.4,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-
-              const Spacer(),
+              // 在 _buildStoryCard 內
+              
+              //const Spacer(),
 
               
               // 按讚與留言
@@ -847,8 +834,25 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
                   ? ListView.builder(
                       itemCount: allStories.length,
                       itemBuilder: (context, index) =>
-                          _buildStoryCard(allStories[index]),
+                        StoryCard(
+                           story: allStories[index], // 你的 Map<String, dynamic>
+                           currentUserId: currentUser.uid,
+                           onEdit: ({String? storyId, Map<String, dynamic>? existingData}) {
+                             _openAddStoryDialog(storyId: storyId, existingData: existingData);
+                           },
+                           onDelete: (String storyId) {
+                             _deleteStory(storyId);
+                           },
+                           onToggleLike: (String userId, String storyId, List<String> likes) {
+                             _toggleLike(userId, storyId, likes);
+                           },
+                           onShowComments: (String userId, String storyId) {
+                             _showComments(userId, storyId);
+                           },
+                         )
+
                     )
+                  
                   : const Center(
                       child: Text(
                         "目前沒有其他人的動態",
@@ -877,4 +881,395 @@ Widget _buildStoryCard(Map<String, dynamic> story) {
     }
 
   
+}
+
+
+
+
+
+class StoryCard extends StatefulWidget {
+  final Map<String, dynamic> story;
+  final String currentUserId;
+
+  // 把原本父層的方法當成 callback 傳進來
+  final void Function({String? storyId, Map<String, dynamic>? existingData}) onEdit;
+  final void Function(String storyId) onDelete;
+  final void Function(String userId, String storyId, List<String> likes) onToggleLike;
+  final void Function(String userId, String storyId) onShowComments;
+
+  const StoryCard({
+    Key? key,
+    required this.story,
+    required this.currentUserId,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onToggleLike,
+    required this.onShowComments,
+  }) : super(key: key);
+
+  @override
+  State<StoryCard> createState() => _StoryCardState();
+}
+
+class _StoryCardState extends State<StoryCard> {
+  bool _isExpanded = false;       // ← 只用一個 bool 狀態就好
+  int _currentPage = 0;
+  late final PageController _pageController;
+
+    // ✅ 抽出文字樣式，讓量測與 Text 使用同一套 Style
+  final TextStyle _contentTextStyle = const TextStyle(
+    fontFamily: 'Inter',
+    fontWeight: FontWeight.w400,
+    fontSize: 14,
+    height: 1.4,
+    color: Colors.black,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  bool _isTextOverflowing({
+    required String text,
+    required TextStyle style,
+    required double maxWidth,
+    required int maxLines,
+    required TextDirection textDirection,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: maxLines,
+      textDirection: textDirection,
+    )..layout(maxWidth: maxWidth);
+    return tp.didExceedMaxLines;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final story = widget.story;
+    final userId = story['userId'] as String;
+    final storyId = story['storyId'] as String;
+    final text = story['text'] ?? '';
+    final photoUrls = List<String>.from(story['photoUrls'] ?? []);
+    final timestamp = (story['timestamp'] as Timestamp?)?.toDate();
+    final likes = List<String>.from(story['likes'] ?? []);
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final imageWidth = screenWidth * (370 / 412);
+    final imageHeight = imageWidth * (358 / 370); // 用你的原始比例換算高度
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+      builder: (context, snapshot) {
+        // 沒資料時不要硬撐高度，直接不顯示
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+
+        final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+        final name = userData['name'] ?? '使用者';
+        final photoUrl = userData['photoUrl'];
+
+        return Container(
+          width: screenWidth * (387 / 412),
+          margin: const EdgeInsets.only(bottom: 11),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.black, width: 2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // ← 高度跟內容走
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 頂部：頭像 + 名稱 + 時間 + 更多
+                Row(
+                  children: [
+                    Container(
+                      width: screenWidth * (34 / 412),
+                      height: screenWidth * (34 / 412),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color.fromRGBO(255, 200, 202, 1),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            offset: const Offset(3, 4),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                            ? NetworkImage(photoUrl)
+                            : null,
+                        child: (photoUrl == null || photoUrl.isEmpty)
+                            ? const Icon(Icons.person, size: 18)
+                            : null,
+                      ),
+                    ),
+                    SizedBox(width: screenWidth * (10 / 412)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontFamily: 'Kiwi Maru',
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                            height: 1.0,
+                            color: Colors.black,
+                          ),
+                        ),
+                        if (timestamp != null)
+                          Text(
+                            timeago.format(timestamp),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color.fromRGBO(130, 130, 130, 1),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const Spacer(),
+                    if (userId == widget.currentUserId)
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_horiz),
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            widget.onEdit(storyId: storyId, existingData: story);
+                          } else if (value == 'delete') {
+                            widget.onDelete(storyId);
+                          }
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'edit', child: Text('編輯')),
+                          PopupMenuItem(value: 'delete', child: Text('刪除')),
+                        ],
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                // 圖片區（多圖可滑動）
+                if (photoUrls.isNotEmpty)
+                  Center(
+                    child: SizedBox(
+                      width: imageWidth,
+                      height: imageHeight, // PageView 需要明確高度
+                      child: Stack(
+                        children: [
+                          PageView.builder(
+                            controller: _pageController,
+                            itemCount: photoUrls.length,
+                            onPageChanged: (index) {
+                              setState(() => _currentPage = index);
+                            },
+                            itemBuilder: (context, index) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: Image.network(
+                                  photoUrls[index],
+                                  width: imageWidth,
+                                  height: imageHeight,
+                                  fit: BoxFit.contain,
+                                ),
+                              );
+                            },
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "${_currentPage + 1}/${photoUrls.length}",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 8,
+                            left: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(photoUrls.length, (index) {
+                                final active = _currentPage == index;
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                                  width: active ? 8 : 6,
+                                  height: active ? 8 : 6,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: active
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.5),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.asset(
+                        'assets/qing.png',
+                        width: imageWidth,
+                        height: imageHeight,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 12),
+
+                // 文字內容（預設兩行 + 顯示更多）
+                // ✅ 文字內容（用行數判斷是否顯示「顯示更多」）
+                if (text.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // 用可用寬度做實際排版檢測
+                        final isOverflow = _isTextOverflowing(
+                          text: text,
+                          style: _contentTextStyle,
+                          maxWidth: constraints.maxWidth,
+                          maxLines: 2,
+                          textDirection: Directionality.of(context),
+                        );
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              text,
+                              style: _contentTextStyle,
+                              maxLines: _isExpanded ? null : 2,
+                              overflow: _isExpanded
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+
+                            // 超過兩行才顯示「顯示更多」
+                            if (!_isExpanded && isOverflow)
+                              GestureDetector(
+                                onTap: () => setState(() => _isExpanded = true),
+                                child: const Text(
+                                  "顯示更多",
+                                  
+                                  style: TextStyle (
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 14,
+                                    height: 1.4,
+                                    color: Colors.black,
+                                  )
+                                ),
+                              ),
+
+                            // 展開後顯示「收起」
+                            if (_isExpanded)
+                              GestureDetector(
+                                onTap: () => setState(() => _isExpanded = false),
+                                child: const Text(
+                                  "收起",
+                                  style: TextStyle (
+                                    fontFamily: 'Inter',
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 14,
+                                    height: 1.4,
+                                    color: Colors.black,
+                                  )
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+
+                const SizedBox(height: 12),
+
+                // 按讚與留言
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        likes.contains(widget.currentUserId)
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        color: Colors.red,
+                      ),
+                      onPressed: () =>
+                          widget.onToggleLike(userId, storyId, likes),
+                    ),
+                    Text('${likes.length}'),
+                    const SizedBox(width: 12),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .collection('stories')
+                          .doc(storyId)
+                          .collection('comment')
+                          .snapshots(),
+                      builder: (context, commentCountSnap) {
+                        final count = commentCountSnap.hasData
+                            ? commentCountSnap.data!.docs.length
+                            : 0;
+                        return Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.comment),
+                              onPressed: () =>
+                                  widget.onShowComments(userId, storyId),
+                            ),
+                            Text('$count'),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
