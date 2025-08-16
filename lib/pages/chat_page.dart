@@ -213,10 +213,11 @@ class _ChatPageState extends State<ChatPage> {
                       icon: const Icon(Icons.more_vert, color: Colors.black),
                       onPressed: () async {
                         final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+                        final targetUserDoc = await FirebaseFirestore.instance.collection('users').doc('FV62KRJXztdua1YXifygY8s91b42').get();
                         await sendPushNotification(
                           targetUserId: 'FV62KRJXztdua1YXifygY8s91b42',
                           title: '配對成功！',
-                          body: '你和某人配對成功了，快去聊聊吧 💕',
+                          body: '你和 ${targetUserDoc['name'] ?? '某人'} 配對成功了，快去聊聊吧 💕',
                           data: {
                             'type': 'match',
                             'chatRoomId': _getMatchRoomId(currentUserId, 'FV62KRJXztdua1YXifygY8s91b42'),
