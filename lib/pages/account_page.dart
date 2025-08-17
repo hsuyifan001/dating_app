@@ -25,6 +25,7 @@ class _AccountPageState extends State<AccountPage> {
   String? mbti;
   String? zodiac;
   String school = '';
+  String selfIntro = '';
   bool isLoading = true;
 
   final List<String> mbtiList = [
@@ -64,6 +65,7 @@ class _AccountPageState extends State<AccountPage> {
       mbti = data['mbti'];
       zodiac = data['zodiac'];
       school = data['school'] ?? '';
+      selfIntro = data['selfIntro'] ?? '';
     }
 
     setState(() {
@@ -296,19 +298,37 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Widget buildSelfprofileBlock(double screenWidth, double screenHeight) {
-    return Container(
-      //width: screenWidth * (387 / 412),
-      //height: screenHeight * (694 / 917),
-      
-      child: Stack(
-        children: [
-          // 個人頭像
-          Positioned(
-            top: screenHeight * (26 / 917),
-            left: screenWidth * (26 / 412),
-            width: screenWidth * (102 / 412),
-            height: screenHeight * (102 / 917),
-            child: Container(
+  // 基準尺寸 (Figma 畫布)
+  const baseWidth = 412.0;
+  const baseHeight = 917.0;
+
+  // 依據螢幕比例計算縮放
+  double w(double value) => value * screenWidth / baseWidth;
+  double h(double value) => value * screenHeight / baseHeight;
+
+
+  final double tagWidth = w(104);
+  final double tagSpacing = w(12);
+
+
+  // 計算一列最多三個標籤，三個標籤加兩個間距的寬度
+  final double maxWrapWidth = tagWidth * 3 + tagSpacing * 2;
+
+  return SingleChildScrollView(
+    padding: EdgeInsets.all(w(14)),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: h(10)),
+
+        // 頭像 + 姓名 + icon 疊加
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 頭像
+            Container(
+              width: w(102),
+              height: w(102),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
@@ -316,249 +336,265 @@ class _AccountPageState extends State<AccountPage> {
                   width: 5,
                 ),
               ),
-              
               child: CircleAvatar(
-                backgroundImage: (user != null && user!.data != null && user!.data["photoUrl"] != null)
-                    ?NetworkImage(photoURL!) 
+                backgroundImage: (user != null &&
+                        user!.data != null &&
+                        user!.data["photoUrl"] != null)
+                    ? NetworkImage(photoURL!)
                     : const AssetImage('assets/match_default.jpg') as ImageProvider,
                 backgroundColor: Colors.transparent,
-              )
-            ),
-          ),
-
-          // 使用者姓名文字框
-          Positioned(
-            top: screenHeight * (64 / 917),
-            left: screenWidth * (120 / 412),
-            width: screenWidth * (147 / 412),
-            height: screenHeight * (41 / 917),
-            child: Center(
-              child: Text(
-                nameController.text.isNotEmpty ? nameController.text : '未設定名稱',
-                style: const TextStyle(
-                  fontFamily: 'Kiwi Maru',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 24,
-                  height: 1,
-                  letterSpacing: 0,
-                  color: Colors.black,
-                ),
-                textAlign: TextAlign.center,
               ),
             ),
-          ),
 
-          // 旋轉 icon.png
-          Positioned(
-            top: screenHeight * (4 / 917),
-            left: screenWidth * (232 / 412),
-            width: screenWidth * (149 / 412),
-            height: screenHeight * (149 / 917),
-            child: Transform.rotate(
-              angle: 14.53 * 3.1415926535 / 180, // 角度轉弧度
-              child: Opacity(
-                opacity: 1,
+            SizedBox(width: w(15)),
+
+            // 姓名區域，Expanded 保證不超出可用寬度
+            Expanded(
+              child: SizedBox(
+                height: w(102),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      nameController.text.isNotEmpty
+                          ? nameController.text
+                          : '未設定名稱',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Kiwi Maru',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 24,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // icon，固定大小並放在Row右側
+            SizedBox(
+              width: w(102), // 可依需求微調
+              height: w(102),
+              child: Transform.rotate(
+                angle: 14.53 * 3.1415926535 / 180,
                 child: Image.asset(
                   'assets/icon.png',
                   fit: BoxFit.contain,
                 ),
               ),
             ),
-          ),
+          ],
+        ),
 
-          // 學校標題文字
-          Positioned(
-            top: screenHeight * (167 / 917),
-            left: screenWidth * (3 / 412),
-            width: screenWidth * (147 / 412),
-            height: screenHeight * (41 / 917),
-            child: Center(
-              child: Text(
-                '學校：',
-                style: const TextStyle(
-                  fontFamily: 'Kiwi Maru',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 24,
-                  height: 1,
-                  letterSpacing: 0,
-                  color: Colors.black,
-                ),
-                textAlign: TextAlign.left,
-              ),
-            ),
-          ),
 
-          // 性別標題文字
-          Positioned(
-            top: screenHeight * (198 / 917),
-            left: screenWidth * (3 / 412),
-            width: screenWidth * (147 / 412),
-            height: screenHeight * (41 / 917),
-            child: Center(
-              child: Text(
-                '性別：',
-                style: const TextStyle(
-                  fontFamily: 'Kiwi Maru',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 24,
-                  height: 1,
-                  letterSpacing: 0,
-                  color: Colors.black,
-                ),
-                textAlign: TextAlign.left,
-              ),
-            ),
-          ),
+        SizedBox(height: h(60)),
 
-          // 自我介紹文字框（標題）
-          Positioned(
-            top: screenHeight * (231 / 917),
-            left: screenWidth * (0 / 412),
-            width: screenWidth * (168 / 412),
-            height: screenHeight * (41 / 917),
-            child: Center(
-              child: Text(
-                '自我介紹:',
-                style: const TextStyle(
-                  fontFamily: 'Kiwi Maru',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 24,
-                  height: 1,
-                  letterSpacing: 0,
-                  color: Colors.black,
-                ),
-                textAlign: TextAlign.left,
-              ),
-            ),
-          ),
+        Transform.translate(
+          offset: Offset( w(20) , 0), // 向左移動5像素
 
-          // 自我介紹內容
-          Positioned(
-            top: screenHeight * (275 / 917),
-            left: screenWidth * (58 / 412),
-            right: screenWidth * (10 / 412),
-            
-            child: Text(
-              bioController.text.isNotEmpty ? bioController.text : '尚未填寫自我介紹',
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.black87,
-                fontWeight: FontWeight.w500,
-                height: 1,
-                letterSpacing: 0,
-              ),
-              textAlign: TextAlign.left,
-            ),
-          ),
-          for (int i = 0; i < (tags.length > 6 ? 6 : tags.length); i++)
-            Positioned(
-              top: screenHeight * ( (308 + (i ~/ 3) * (45 + 9) )/ 917),
-              left: screenWidth * ( (30 + (i % 3) * (104 + 8) ) / 412),
-              width: screenWidth * (104 / 412),
-              height: screenHeight * (45 / 917),
-              
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.pink.shade100, width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.pink.shade50,
-                      blurRadius: 2,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: h(30), // 你可以根據需要調整大小
                 child: FittedBox(
+                  alignment: Alignment.centerLeft,
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    tags[i].toString(),
+                    '學校：$school${school.isNotEmpty ? '' : '尚未填寫'}',
                     style: const TextStyle(
-                      color: Colors.pink,
+                      fontFamily: 'Kiwi Maru',
                       fontWeight: FontWeight.w500,
-                      fontSize: 16,
+                      fontSize: 30, // 這會是最大字級，實際字號會依盒子大小縮放
+                      color: Colors.black,
                     ),
                   ),
-               ),
-              ),
-            ),
-          // 編輯個人資料按鈕
-          Positioned(
-            top: screenHeight * (500 / 917),
-            left: screenWidth * (26 / 412),
-            width: screenWidth * (156 / 412),
-            height: screenHeight * (55 / 917),
-            child: ElevatedButton(
-              onPressed: () => showEditBottomSheet(context),
-              style: ElevatedButton.styleFrom(
-              backgroundColor: const Color.fromRGBO(255, 200, 202, 1),
-              foregroundColor: Colors.black, // 文字顏色
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-                side: const BorderSide(
-                  color: Color.fromRGBO(0, 0, 0, 1),
-                  width: 2,
                 ),
               ),
-            ),
-              child: Text(
-                '編輯個人資料',
-                style: TextStyle(
-                  fontFamily: 'Kiwi Maru',
-                  fontWeight: FontWeight.w500,
-                  fontSize: screenWidth * (20 / 412),
-                  height: 1.0, // line-height: 100%
-                  letterSpacing: 0.0,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
 
-          // 登出按鈕
-          Positioned(
-            top: screenHeight * (500 / 917),
-            left: screenWidth * (213 / 412),
-            width: screenWidth * (156 / 412),
-            height: screenHeight * (55 / 917),
-            child: ElevatedButton(
-              onPressed: _logout,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromRGBO(255, 255, 255, 1),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  side: const BorderSide(
-                    color: Color.fromRGBO(0, 0, 0, 1),
-                    width: 2,
+              SizedBox(height: h(8)),
+
+              SizedBox(
+                height: h(30),
+                child: FittedBox(
+                  alignment: Alignment.centerLeft,
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '性別：$gender${gender.isNotEmpty ? '' : '尚未填寫'}',
+                    style: const TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 30,
+                      color: Colors.black,
+                    ),
                   ),
                 ),
               ),
-              child: FittedBox(
-                child: const Text(
-                  '登出',
-                  style: TextStyle(
-                    color: Color.fromRGBO(246, 157, 158, 1),
-                    fontFamily: 'Kiwi Maru',
-                    fontWeight: FontWeight.w500,
-                    fontSize: 20,
-                    height: 1.0, // line-height: 100%
-                    letterSpacing: 0.0,
+
+              SizedBox(height: h(8)),
+
+              SizedBox(
+                height: h(30),
+                child: FittedBox(
+                  alignment: Alignment.centerLeft,
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '自我介紹:',
+                    style: const TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 30,
+                      color: Colors.black,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
                 ),
-              )
-              
+              ),
+
+              SizedBox(height: h(8)),
+
+              SizedBox(
+                height: h(30), // 自我介紹內容可以用較高高度因字數較多
+                child: FittedBox(
+                  alignment: Alignment.topLeft,
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '$selfIntro${selfIntro.isNotEmpty ? '' : '尚未填寫'}',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+
+        SizedBox(height: h(30)),
+
+        // 標籤 (Wrap 模擬 Figma 的排列)
+        Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: tagSpacing / 2),
+            child: Container(
+              width: maxWrapWidth,
+              child: Wrap(
+                alignment: WrapAlignment.start,
+                spacing: tagSpacing,
+                runSpacing: h(8),
+                children: [
+                  for (int i = 0; i < (tags.length > 6 ? 6 : tags.length); i++)
+                    Container(
+                      width: tagWidth,
+                      height: h(39),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.pink.shade100, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.pink.shade50,
+                            blurRadius: 2,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          "  "+tags[i].toString()+"  ",
+                          
+                          style: const TextStyle(
+                            color: Colors.pink,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-          
+        ),
 
-        ],
-      ),
-    );
-  }
+
+        SizedBox(height: h(60)),
+
+        // 按鈕區 (編輯 / 登出)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            SizedBox(
+              width: w(156),
+              height: h(55),
+              child: ElevatedButton(
+                onPressed: () => showEditBottomSheet(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromRGBO(255, 200, 202, 1),
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    side: const BorderSide(color: Colors.black, width: 2),
+                  ),
+                ),
+                child : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '編輯個人資料',
+                    style: TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                
+              ),
+            ),
+            SizedBox(
+              width: w(156),
+              height: h(55),
+              child: ElevatedButton(
+                onPressed: _logout,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    side: const BorderSide(color: Colors.black, width: 2),
+                  ),
+                ),
+                child : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: const Text(
+                    '登出',
+                    style: TextStyle(
+                      color: Color.fromRGBO(246, 157, 158, 1),
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+
   
   @override
   Widget build(BuildContext context) {

@@ -735,14 +735,17 @@ class _MatchPageState extends State<MatchPage> {
                       ),
                     ],
                   ),
-                  child: Text(
-                    users.isNotEmpty
-                        ? (users[currentMatchIdx].data() as Map)['name'] ?? '名字'
-                        : '名字',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child:Text(
+                      users.isNotEmpty
+                          ? "  " + (users[currentMatchIdx].data() as Map)['name'] + "  " ?? '名字'
+                          : '名字',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
                 ),
@@ -769,15 +772,19 @@ class _MatchPageState extends State<MatchPage> {
                         ),
                       ],
                     ),
-                    child: Text(
-                      tags[i].toString().replaceAll(RegExp(r'\r?\n'), ''), // 去掉換行
-                      style: const TextStyle(
-                        color: Colors.pink,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child:Text(
+                        "  "+tags[i].toString().replaceAll(RegExp(r'\r?\n') , '')+ "  ", // 去掉換行
+                        style: const TextStyle(
+                          color: Colors.pink,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      )
+                      
                   ),
                 ),
 
