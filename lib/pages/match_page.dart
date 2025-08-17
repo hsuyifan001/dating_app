@@ -739,8 +739,8 @@ class _MatchPageState extends State<MatchPage> {
                     fit: BoxFit.scaleDown,
                     child:Text(
                       users.isNotEmpty
-                          ? "  " + (users[currentMatchIdx].data() as Map)['name'] + "  " ?? '名字'
-                          : '名字',
+                          ? "  " + ((users[currentMatchIdx].data() as Map)['name'] ?? '名字') + "  "
+                          : ' 名字 ',
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
