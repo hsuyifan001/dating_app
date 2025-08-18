@@ -630,7 +630,7 @@ class _MatchPageState extends State<MatchPage> {
     const tagBoxHeight = 39.0; // 原本是 39.0
     const tagBoxHSpace = 8.0; // 水平間距
     const tagBoxVSpace = 9.0; // 垂直間距
-        return Container(
+    return Container(
       color: const Color(0xFFE8FFFB), // 設定整個背景色
       child: LayoutBuilder(
         builder: (context, constraints) {

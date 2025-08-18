@@ -21,23 +21,29 @@ class Activity:
         self.source = source
         self.imgUrl = img_url
         self.likeBy = []
-        self.groupId = None
-        self.groupLimit = 5
+        self.groupId = []
+        self.groupLimit = 4
         self.date = None
         # 用 URL + 標題生成唯一 ID
         self.id = str(hashlib.md5(f"{title}_{href}".encode("utf-8")).hexdigest())
     
     def to_dict(self):
         return {
+            #basic inforamtion
+            "createdAt": firestore.SERVER_TIMESTAMP,
+            "date": self.date,
+            "imageUrl": self.imgUrl,
             "title": self.title,
             "url": self.url,
             "source": self.source,
-            "imageUrl": self.imgUrl,
+            #algorithm information
             "likedBy": self.likeBy,
+            "dislikeBy": [],
+            "hasInGroupChat":[],
+            "NumberToCreateGroup": self.groupLimit,
+            "NumberOfPeopleInGroup": self.groupLimit,
             "groupId": self.groupId,
-            "groupLimit": self.groupLimit,
-            "date": self.date,
-            "createdAt": firestore.SERVER_TIMESTAMP,
+
         }
 
 def fetch_detail_img_if_valid(url):
@@ -131,6 +137,11 @@ def fetch_hsin_activities():
             if not doc.exists:
                 doc_ref.set(activity.to_dict())
                 print(f"add hsin: {activity.id}")
+            else:
+                continue
+        print("hsinchu activities fetched successfully.")
+    else:
+        print(f"Failed to fetch hsinchu activities, status code: {response.status_code}")
 
 def fetch_nthu_activities():
     firestore_client: google.cloud.firestore.Client = firestore.client()
@@ -160,6 +171,13 @@ def fetch_nthu_activities():
                     if not doc.exists:
                         doc_ref.set(activity.to_dict())
                         print(f"add nthu: {activity.id}")
+                    else:
+                        continue
+                else:  
+                    continue
+        else:
+            continue
+    print("nthu activities fetched successfully.")
 
 @https_fn.on_request()
 def fetch_activities(req: https_fn.Request) -> https_fn.Response:
