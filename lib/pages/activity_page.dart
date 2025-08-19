@@ -1,40 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:html/parser.dart' as parser;
-import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'dart:typed_data';
-
-class Activity {
-  final String title;
-  final String url;
-  final String source;
-
-  Activity(this.title, this.url, this.source);
-
-  String get id => md5.convert(utf8.encode(url)).toString();
-
-  Map<String, dynamic> toJson({String? description}) {
-    return {
-      'title': title,
-      'url': url,
-      'source': source,
-      'description': description ?? '',
-      'createdAt': FieldValue.serverTimestamp(),
-      'likedBy': [],
-      'groupId': null,
-      'groupLimit': 5,
-      'date': null,
-    };
-  }
-}
+import 'package:url_launcher/url_launcher.dart';
 
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key});
@@ -44,546 +11,650 @@ class ActivityPage extends StatefulWidget {
 }
 
 class _ActivityPageState extends State<ActivityPage> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final ImagePicker _picker = ImagePicker();
-  String? currentUserId;
+  final String detailContent = "這裡是活動詳細內容...";
 
-  File? selectedImage;
-  String? locationText;
+  // Figma 畫布尺寸
+  final double figmaWidth = 412.0;
+  final double figmaHeight = 917.0;
+
+  Map<String, dynamic>? activity; // 存放要顯示的活動
+  String? activityId;
 
   @override
   void initState() {
     super.initState();
-    final user = _auth.currentUser;
-    if (user != null) {
-      currentUserId = user.uid;
-    }
-    //_fetchAndSaveActivities();
-    //fetchAndSaveNTHUActivities();
-    //fetchAndSaveHSINActivities();
+    _loadActivity();
   }
 
-  Future<bool> canCreateActivity(String userId) async {
-    final today = DateFormat('yyyyMMdd').format(DateTime.now());
-    final docRef = _firestore.collection('users').doc(userId).collection('activityCreate').doc(today);
-    final doc = await docRef.get();
+  Future<void> _loadActivity() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
 
-    if (doc.exists) {
-      final data = doc.data()!;
-      final list = List.from(data['activityCreate'] ?? []);
-      return list.length < 3;
-    } else {
-      return true;
-    }
-  }
-
-  Future<void> updateCreateCount(String userId, String activityId) async {
-    final today = DateFormat('yyyyMMdd').format(DateTime.now());
-    final docRef = _firestore.collection('users').doc(userId).collection('activityCreate').doc(today);
-
-    await _firestore.runTransaction((txn) async {
-      final snapshot = await txn.get(docRef);
-      List activityList = [];
-
-      if (snapshot.exists) {
-        activityList = List.from(snapshot['activityCreate'] ?? []);
-      }
-
-      activityList.add(activityId);
-      final reachLimit = activityList.length >= 3;
-
-      txn.set(docRef, {
-        'activityCreate': activityList,
-        'reachLimit': reachLimit,
-      });
-    });
-  }
-
-  Future<String> uploadImage(File file) async {
-    final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(
-      file.path,
-      minWidth: 800,  // 降低解析度
-      minHeight: 800,
-      quality: 70,    // 壓縮品質
-      format: CompressFormat.jpeg,
-    );
-
-    if (compressedImage == null) {
-      throw Exception('壓縮圖片失敗');
-    }
-
-    // 2️⃣ 上傳壓縮後的檔案
-    final ref = _storage.ref().child(
-      'activity_images/${DateTime.now().millisecondsSinceEpoch}.jpg',
-    );
-
-    await ref.putData(
-      compressedImage,
-      SettableMetadata(contentType: 'image/jpeg'),
-    );
-
-    // 3️⃣ 回傳下載 URL
-    return await ref.getDownloadURL();
-  }
-
-
-  //URL parser
-  /*
-  Future<String> fetchDetailDescriptionIfValid(String url) async {
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) return '';
-
-      final document = parser.parse(response.body);
-
-      final mainDiv = document.querySelector('div.main');
-      final containerDiv = document.querySelector('#fs.container');
-      final detailDiv = document.querySelector('div.ap > div.detail');
-
-      if (mainDiv == null || containerDiv == null || detailDiv == null) {
-        return '';
-      }
-
-      final editorDiv = detailDiv.querySelector('.editor');
-      if (editorDiv == null) return '';
-
-      return editorDiv.text.trim();
-    } catch (e) {
-      print('抓取活動詳細頁失敗: $e');
-      return '';
-    }
-  }
-
-  Future<void> _fetchAndSaveActivities() async {
-    final url = 'https://osa.nycu.edu.tw/osa/ch/app/data/list?module=nycu0085&id=3494';
-    final response = await http.get(Uri.parse(url));
-
-    if (response.statusCode != 200) {
-      throw Exception('網站請求失敗');
-    }
-
-    final document = parser.parse(response.body);
-    final items = document.querySelectorAll('div.newslist > ul > li');
-    
-
-    for (var item in items) {
-      final aTag = item.querySelector('a');
-      if (aTag != null) {
-        final infoDiv = aTag.querySelector('div.info');
-        String category = '';
-        if (infoDiv != null) {
-          final pTags = infoDiv.querySelectorAll('p');
-          for (var p in pTags) {
-            final text = p.text.trim();
-            if (text.startsWith('分類：')) {
-              category = text.replaceFirst('分類：', '').trim();
-              break;
-            }
-          }
-        }
-
-        if (category != '校外訊息' && category != '校內活動') continue;
-
-        final title = aTag.attributes['title'] ?? '';
-        final href = aTag.attributes['href'] ?? '';
-        final fullUrl = 'https://osa.nycu.edu.tw$href';
-
-        final activity = Activity(title, fullUrl, 'nycu');
-        final description = await fetchDetailDescriptionIfValid(fullUrl);
-        final docRef = _firestore.collection('activities').doc(activity.id);
-        final doc = await docRef.get();
-
-        if (!doc.exists) {
-          await docRef.set(activity.toJson(description: description));
-        }
-
-        
-      }
-    }
-
-  }
-
-  Future<void> fetchAndSaveHSINActivities() async {
-    final url = 'https://tjm.tainanoutlook.com/hsinchu';
-    final firestore = FirebaseFirestore.instance;
-    final response = await http.get(Uri.parse(url), headers: {
-      'User-Agent': 'Mozilla/5.0',
-    });
-
-    if (response.statusCode != 200) {
-      print('Error fetching $url - Status: ${response.statusCode}');
-      return;
-    }
-
-    final document = parser.parse(response.body);
-
-    final imgElements =document.querySelectorAll('#blazy-3d03bf26a8e-1 > li > div > div > span > div > a > img');
-    // 取得對應的 <a> 標籤
-    final aElements =  document.querySelectorAll('#blazy-3d03bf26a8e-1 > li > div > div > span > div > a');
-
-
-    for (int i = 0; i < imgElements.length && i < aElements.length; i++) {
-      final href = aElements[i].attributes['href'];
-      final title =
-          imgElements[i].attributes['title'] ?? aElements[i].text.trim() ?? "無標題";
-
-      if (href == null || href.isEmpty) {
-        continue;
-      }
-
-      final activity = Activity(title, href, 'hsinchu');
-
-      final docRef = firestore.collection('activities').doc(activity.id);
-      final doc = await docRef.get();
-
-      if (!doc.exists) {
-        await docRef.set(activity.toJson());
-        print('Saved: $title');
-      } else {
-        print('Already exists: $title');
-      }
-    }
-    
-  }
-
-  Future<void> fetchAndSaveNTHUActivities() async {
-    final firestore = FirebaseFirestore.instance;
-    final ajaxUrls = [
-      'https://bulletin.site.nthu.edu.tw/app/index.php?Action=mobileloadmod&Type=mobile_rcg_mstr&Nbr=5083',
-      'https://bulletin.site.nthu.edu.tw/app/index.php?Action=mobileloadmod&Type=mobile_rcg_mstr&Nbr=5085',
-    ];
-
-    for (final url in ajaxUrls) {
-      final response = await http.get(Uri.parse(url), headers: {
-        'User-Agent': 'Mozilla/5.0',
-      });
-
-      if (response.statusCode != 200) {
-        print('Error fetching $url - Status: ${response.statusCode}');
-        continue;
-      }
-
-      final document = parser.parse(response.body);
-
-      final aTags = document.querySelectorAll('a');
-
-      for (var a in aTags) {
-        final href = a.attributes['href'];
-        var title = a.attributes['title'] ?? a.text.trim();
-
-        if (title == "更多..." || href == null || href.isEmpty) {
-          continue;
-        }
-
-        final activity = Activity(title, href, 'nthu');
-
-        final docRef = firestore.collection('activities').doc(activity.id);
-        final doc = await docRef.get();
-
-        if (!doc.exists) {
-          await docRef.set(activity.toJson());
-          print('Saved: $title');
-        } else {
-          print('Already exists: $title');
-        }
-      }
-    }
-  }
-*/
-  //URL parser end
-
-  void _showCreateActivityDialog() {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final groupLimitController = TextEditingController(text: '5');
-    final locationController = TextEditingController();
-    DateTime? selectedDateTime;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('建立新活動'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(controller: titleController, decoration: const InputDecoration(labelText: '活動名稱')),
-              TextField(controller: descriptionController, decoration: const InputDecoration(labelText: '活動說明')),
-              TextField(controller: locationController, decoration: const InputDecoration(labelText: '地點')),
-              TextButton(
-                onPressed: () async {
-                  final date = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime(2100));
-                  if (date == null) return;
-                  final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                  if (time == null) return;
-                  setState(() {
-                    selectedDateTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-                  });
-                },
-                child: const Text('選擇時間')
-              ),
-              TextField(controller: groupLimitController, decoration: const InputDecoration(labelText: '人數上限'), keyboardType: TextInputType.number),
-              ElevatedButton(
-                onPressed: () async {
-                  final picked = await _picker.pickImage(source: ImageSource.gallery);
-                  if (picked != null) {
-                    setState(() => selectedImage = File(picked.path));
-                  }
-                },
-                child: const Text('上傳圖片'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-          ElevatedButton(
-            onPressed: () async {
-              if (!await canCreateActivity(currentUserId!)) return;
-
-              final title = titleController.text.trim();
-              final desc = descriptionController.text.trim();
-              final location = locationController.text.trim();
-              final limit = int.tryParse(groupLimitController.text.trim()) ?? 5;
-
-              if (title.isEmpty || selectedDateTime == null) return;
-
-              String? imageUrl;
-              if (selectedImage != null) {
-                imageUrl = await uploadImage(selectedImage!);
-              }
-
-              final newActivity = {
-                'title': title,
-                'description': desc,
-                'location': location,
-                'imageUrl': imageUrl,
-                'date': Timestamp.fromDate(selectedDateTime!),
-                'url': '',
-                'source': 'user',
-                'createdAt': FieldValue.serverTimestamp(),
-                'likedBy': [currentUserId],
-                'groupId': null,
-                'groupLimit': limit,
-                'creatorId': currentUserId,
-              };
-
-              final docRef = await _firestore.collection('activities').add(newActivity);
-              await updateCreateCount(currentUserId!, docRef.id);
-
-              Navigator.pop(context);
-              setState(() {});
-            },
-            child: const Text('建立'),
-          )
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteActivity(DocumentSnapshot doc) async {
-    final data = doc.data() as Map<String, dynamic>;
-    if (data['creatorId'] != currentUserId) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('確認刪除'),
-        content: const Text('確定要刪除這個活動嗎？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('刪除')),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await doc.reference.delete();
-      setState(() {});
-    }
-  }
-
-  void _openMyActivitiesPage() async {
-    if (currentUserId == null) return;
-
-    final snapshot = await _firestore
-        .collection("users")
-        .doc(currentUserId)
-        .collection("activityCreate")
+    final snapshot = await FirebaseFirestore.instance
+        .collection('activities')
         .get();
 
-    List<Map<String, dynamic>> createdActivities = [];
-
     for (var doc in snapshot.docs) {
-      final List<dynamic> list = doc.data()['activityCreate'] ?? [];
-      for (var item in list) {
-        final actDoc = await _firestore.collection("activities").doc(item).get();
-        if (actDoc.exists) {
-          createdActivities.add({...?actDoc.data(), 'docId': actDoc.id});
-        }
+      final data = doc.data();
+      final likedBy = List<String>.from(data['likedBy'] ?? []);
+      final dislikedBy = List<String>.from(data['dislikedBy'] ?? []);
+      final hasInGroupChat = List<String>.from(data['hasInGroupChat'] ?? []);
+
+      if (!likedBy.contains(uid) &&
+          !dislikedBy.contains(uid) &&
+          !hasInGroupChat.contains(uid)) {
+        setState(() {
+          activity = data;
+          activityId = doc.id;
+        });
+        break;
       }
     }
+  }
 
-    if (!mounted) return;
+  Future<void> _showCreateActivityDialog() async {
+    final _formKey = GlobalKey<FormState>();
+    String? title;
+    String? imageUrl;
+    String? location;
+    DateTime? dateTime;
+    String? description;
+    int? numberToCreateGroup;
+    int? numberOfPeopleInGroup;
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text("我創建的活動")),
-          body: ListView.builder(
-            itemCount: createdActivities.length,
-            itemBuilder: (context, index) {
-              final data = createdActivities[index];
-              return Card(
-                margin: const EdgeInsets.all(12),
-                child: ListTile(
-                  leading: data['imageUrl'] != null
-                      ? Image.network(data['imageUrl'], width: 50, height: 50, fit: BoxFit.cover)
-                      : const Icon(Icons.event),
-                  title: Text(data['title'] ?? ''),
-                  subtitle: Text(data['location'] ?? ''),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      final docId = data['docId'];
-                      await _firestore.collection('activities').doc(docId).delete();
-                      setState(() {});
-                      Navigator.pop(context);
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('創建活動'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 活動名稱
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: '活動名稱'),
+                    validator: (value) =>
+                        value == null || value.isEmpty ? '請輸入活動名稱' : null,
+                    onSaved: (value) => title = value,
+                  ),
+                  // 活動圖片 URL（簡化用 URL 輸入）
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: '圖片 URL'),
+                    onSaved: (value) => imageUrl = value,
+                  ),
+                  // 活動地點
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: '地點'),
+                    validator: (value) =>
+                        value == null || value.isEmpty ? '請輸入地點' : null,
+                    onSaved: (value) => location = value,
+                  ),
+                  // 活動時間 Picker（簡化為文字輸入，推薦後續改用 DateTimePicker）
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: '時間(yyyy-MM-dd HH:mm)'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '請輸入時間';
+                      }
+                      try {
+                        dateTime = DateTime.parse(value);
+                      } catch (e) {
+                        return '時間格式錯誤';
+                      }
+                      return null;
                     },
                   ),
-                ),
-              );
-            },
+                  // 活動說明
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: '活動說明'),
+                    onSaved: (value) => description = value,
+                    maxLines: 3,
+                  ),
+                  // 建立群組人數
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: '建立群組人數'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '請輸入建立群組人數';
+                      }
+                      final numVal = int.tryParse(value);
+                      if (numVal == null || numVal <= 0) {
+                        return '請輸入正確的數字';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) =>
+                        numberToCreateGroup = int.tryParse(value ?? ''),
+                  ),
+                  // 活動人數上限
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: '活動人數上限'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '請輸入活動人數上限';
+                      }
+                      final numVal = int.tryParse(value);
+                      if (numVal == null || numVal <= 0) {
+                        return '請輸入正確的數字';
+                      }
+                      return null;
+                    },
+                    onSaved: (value) =>
+                        numberOfPeopleInGroup = int.tryParse(value ?? ''),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+          actions: [
+            TextButton(
+              child: const Text('取消'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            ElevatedButton(
+              child: const Text('儲存'),
+              onPressed: () async {
+                if (_formKey.currentState?.validate() ?? false) {
+                  _formKey.currentState?.save();
+
+                  // 取得目前使用者 ID 作為創建者
+                  final userCreate = FirebaseAuth.instance.currentUser?.uid;
+                  if (userCreate == null) {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('您尚未登入')));
+                    return;
+                  }
+
+                  final docRef = FirebaseFirestore.instance.collection('activities').doc();
+
+                  await docRef.set({
+                    "createdAt": FieldValue.serverTimestamp(),
+                    "date": dateTime,
+                    "imageUrl": imageUrl ?? '',
+                    "title": title ?? '',
+                    "url": null,
+                    "source": 'user',
+                    "likedBy": [userCreate],
+                    "dislikedBy": [],
+                    "hasInGroupChat": [],
+                    "NumberToCreateGroup": numberToCreateGroup ?? 1,
+                    "NumberOfPeopleInGroup": numberOfPeopleInGroup ?? 1,
+                    "groupId": null,
+                    "location": location ?? '',
+                    "description": description ?? '',
+                  });
+
+                  Navigator.of(context).pop();
+
+                  // 重新載入活動列表或給予提示
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('活動已創建')));
+                  _loadActivity();
+                }
+              },
+            )
+          ],
+        );
+      },
     );
   }
 
+  Future<void> _dislikeActivity() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || activityId == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('activities')
+        .doc(activityId)
+        .update({
+      "dislikedBy": FieldValue.arrayUnion([uid]),
+    });
+
+    // 更新完之後再載入下一個活動
+    setState(() {
+      activity = null;
+      activityId = null;
+    });
+    _loadActivity();
+  }
+  
+  Future<void> showMatchSuccessDialog(BuildContext context) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: true, // 點擊背景關閉
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.only(left: 25, top: 248, right: 24, bottom: 24),
+          child: SizedBox(
+            width: 363,
+            height: 253,
+            child: Stack(
+              children: [
+                Opacity(
+                  opacity: 1,
+                  child: Image.asset(
+                    'assets/match_success.png',
+                    width: 363,
+                    height: 253,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+
+  Future<void> _likeActivity() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || activity == null || activityId == null) return;
+
+      final source = activity!['source'] ?? '';
+      final groupId = activity!['groupId'];
+      final likedBy = List<String>.from(activity!['likedBy'] ?? []);
+      final numberOfPeopleInGroup = activity!['NumberOfPeopleInGroup'] ?? 0;
+      final numberToCreateGroup = activity!['NumberToCreateGroup'] ?? 0;
+
+      // 檢查是否為 user 建立的活動
+      if (source == 'user') {
+        // 檢查 groupId 是否為 null
+        if (groupId != null) {
+          
+          // 把使用者加入 chats/groupId/members 陣列
+          final groupChatRef = FirebaseFirestore.instance.collection('chats').doc(groupId);
+          await groupChatRef.update({
+            'members': FieldValue.arrayUnion([uid])
+          });
+
+          // 判斷自己是不是最後一個可加入群組的人
+          if (likedBy.length + 1 == numberOfPeopleInGroup) {
+            // 刪除該活動文件
+            await FirebaseFirestore.instance
+                .collection('activities')
+                .doc(activityId)
+                .delete();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('您是最後一位加入，活動已從列表刪除')),
+            );
+          }
+          //未達人數上限不用做事
+          else{
+          }
+          await showMatchSuccessDialog(context);
+
+        }
+        //groupId 為 null 
+        else{
+          // 把使用者加入活動的 likedBy 陣列
+          await FirebaseFirestore.instance
+              .collection('activities')
+              .doc(activityId)
+              .update({
+            "likedBy": FieldValue.arrayUnion([uid]),
+          });
+
+          //是否達到創建群組的調件
+          if(likedBy.length + 1 >= numberToCreateGroup){
+            // 創建新的群組
+            final newGroupRef = FirebaseFirestore.instance.collection('chats').doc();
+            await newGroupRef.set({
+              'createdAt': FieldValue.serverTimestamp(),
+              'members': [...likedBy, uid],
+              'type': 'activity',
+              'groupName': activity!['title'] ?? '活動群組',
+              'groupPhotoUrl': activity!['imageUrl'] ?? '',
+              'lastMessageTime' : FieldValue.serverTimestamp(),
+              'lastMessage': '活動配對成功，請在群組中討論',
+            });
+            // 更新活動文件的 groupId
+            await FirebaseFirestore.instance
+                .collection('activities')
+                .doc(activityId)
+                .update({
+              'groupId': newGroupRef.id,
+            });
+            
+            if (likedBy.length + 1 == numberOfPeopleInGroup) {
+              // 刪除該活動文件
+              await FirebaseFirestore.instance
+                  .collection('activities')
+                  .doc(activityId)
+                  .delete();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('您是最後一位加入，活動已從列表刪除')),
+              );
+            }
+            await showMatchSuccessDialog(context);
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('活動已加入喜歡列表並創建群組')),
+            );
+          }
+          else{
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('活動已加入喜歡列表，但未達到創建群組的條件')),
+            );
+          }
+        }
+    }
+    //source != 'user'
+    else{
+      // 把使用者加入 likedBy 陣列
+      await FirebaseFirestore.instance
+          .collection('activities')
+          .doc(activityId)
+          .update({
+        "likedBy": FieldValue.arrayUnion([uid]),
+      });
+      // 如果達到創建群組條件
+      if (likedBy.length + 1 >= numberToCreateGroup) {
+        // 創建新的群組
+        final newGroupRef = FirebaseFirestore.instance.collection('chats').doc();
+        await newGroupRef.set({
+          'createdAt': FieldValue.serverTimestamp(),
+          'members': [...likedBy, uid], // 將 likedBy 全部成員搬移
+          'type': 'activity',
+          'groupName': activity!['title'] ?? '活動群組',
+          'groupPhotoUrl': activity!['imageUrl'] ?? '',
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'lastMessage': '活動配對成功，請在群組中討論',
+        });
+
+        // 更新活動文件的 groupId 並且把 likedBy 轉移到 hasInGroupChat
+        await FirebaseFirestore.instance
+            .collection('activities')
+            .doc(activityId)
+            .update({
+          'groupId': newGroupRef.id,
+          'hasInGroupChat': FieldValue.arrayUnion(likedBy),
+          'likedBy': [],
+        });
+        await showMatchSuccessDialog(context);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('活動已加入喜歡列表並創建群組')));
+      }
+      else{
+        ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('活動已加入喜歡列表')),
+      );
+      }
+      
+    }
+
+    //做完事了
+    setState(() {
+      activity = null;
+      activityId = null;
+    });
+    _loadActivity();
+    return;
+  }
+
+
+  void _launchURL(BuildContext context, String url) async {
+    final Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('無法開啟網址')),
+      );
+    }
+  }
   @override
   Widget build(BuildContext context) {
-    if (currentUserId == null) {
+    
+    if (activity == null) {
       return const Scaffold(
-        body: Center(child: Text('尚未登入，請先登入帳號')),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    final String imageUrl = activity!['imageUrl'] ?? '';
+    final String title = activity!['title'] ?? '';
+    final String date = activity!['Date'] ?? '無日期資料';
+    final String source = activity!['source'] ?? '無來源資料';
+    final String url = activity!['url'] ?? '';
+
+
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('活動推播'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _showCreateActivityDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.list_alt_outlined),
-            onPressed: _openMyActivitiesPage,
-          ),
-        ],
-      ),
-      body: FutureBuilder<QuerySnapshot>(
-        future: _firestore.collection('activities').orderBy('createdAt', descending: true).get(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('目前沒有活動'));
-          }
+      backgroundColor: const Color(0xFCD3F8F3),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenWidth = constraints.maxWidth;
+          final screenHeight = constraints.maxHeight;
 
-          final docs = snapshot.data!.docs.where((doc) {
-            final likedBy = List<String>.from(doc['likedBy'] ?? []);
-            return !likedBy.contains(currentUserId);
-          }).toList();
+          // 計算背景圖呈現範圍
+          final bgAspect = figmaWidth / figmaHeight;
+          final screenAspect = screenWidth / screenHeight;
 
-          if (docs.isEmpty) {
-            return const Center(child: Text('你已看完所有活動了！'));
+          double bgWidth, bgHeight, bgLeft, bgTop;
+          if (screenAspect > bgAspect) {
+            // 螢幕比較寬 → 高度填滿，上下對齊
+            bgHeight = screenHeight;
+            bgWidth = bgHeight * bgAspect;
+            bgLeft = (screenWidth - bgWidth) / 2;
+            bgTop = 35;
+          } else {
+            // 螢幕比較窄 → 寬度填滿，左右對齊
+            bgWidth = screenWidth;
+            bgHeight = bgWidth / bgAspect;
+            bgLeft = 0;
+            bgTop = (screenHeight - bgHeight) / 2+30;
           }
 
-          final currentDoc = docs.first;
-          final data = currentDoc.data() as Map<String, dynamic>;
+          // 封裝換算工具（把 Figma 上的座標轉成實際螢幕 px）
+          double fw(double px) => bgWidth * (px / figmaWidth);
+          double fh(double px) => bgHeight * (px / figmaHeight);
+          double fx(double px) => bgLeft + bgWidth * (px / figmaWidth);
+          double fy(double px) => bgTop + bgHeight * (px / figmaHeight);
 
-          return Column(
+          return Stack(
             children: [
-              Expanded(
-                child: Card(
-                  margin: const EdgeInsets.all(16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (data['imageUrl'] != null)
-                          Center(
-                            child: Image.network(data['imageUrl'], height: 150),
+              
+              // 創建活動按鈕
+              Positioned(
+                left: fx(272),
+                top: fy(10),
+                width: fw(131),
+                height: fh(48),
+                child: ElevatedButton(
+                  onPressed: _showCreateActivityDialog, // 觸發懸浮視窗
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromRGBO(246, 219, 220, 1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: const BorderSide(color: Colors.black, width: 2),
+                    ),
+                  ),
+                  child: const Text(
+                    "創建活動",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+
+              // 活動圖片
+              Positioned(
+                left: fx(70),
+                top: fy(110),
+                width: fw(290),
+                height: fh(340),
+                child: imageUrl == null || imageUrl.isEmpty
+                    ? Image.asset(
+                        'assets/activity_default.png',
+                        fit: BoxFit.contain,
+                      )
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          // 網路圖片抓取失敗時，顯示預設圖片
+                          return Image.asset(
+                            'assets/activity_default.png',
+                            fit: BoxFit.contain,
+                          );
+                        },
+                      ),
+              ),
+
+              // 活動詳細內容背景 + 文字
+              Positioned(
+                left: fx(-2),
+                top: fy(530),
+                width: fw(424),
+                height: fh(157),
+                child: Stack(
+                  children: [
+                    Image.asset(
+                      "assets/activity_detail.png",
+                      fit: BoxFit.fill,
+                      width: fw(424),
+                      height: fh(157),
+                    ),
+                    Positioned(
+                      left: fx(-60),
+                      top: fy(10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '活動名稱：$title',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           ),
-                        Text(data['title'] ?? '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        if (data['location'] != null)
-                          Text('地點：${data['location']}', style: const TextStyle(color: Colors.black87)),
-                        if (data['date'] != null)
-                          Text('時間：${DateFormat('yyyy-MM-dd HH:mm').format((data['date'] as Timestamp).toDate())}'),
-                        const SizedBox(height: 8),
-                        Text(data['description'] ?? '', maxLines: 5, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 8),
-                        if (data['url'] != null && data['url'] != '')
-                          Text(data['url'], style: const TextStyle(color: Colors.blue)),
-                        const SizedBox(height: 12),
-                        if (data['creatorId'] == currentUserId)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _confirmDeleteActivity(currentDoc),
-                            ),
+                          Text(
+                            '日期：$date',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           ),
-                      ],
+                          
+                          Text(
+                            '來源：$source',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(height: 6),
+                          url.isNotEmpty
+                              ? GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onTap: () => _launchURL(context, url),
+                                  child: Text(
+                                    '更多資訊連結',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.blue,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // 背景圖
+              Positioned(
+                left: bgLeft,
+                top: bgTop,
+                width: bgWidth,
+                height: bgHeight,
+                child: IgnorePointer(
+                  child: Image.asset(
+                    "assets/activity_background.png",
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+
+              // 活動名稱文字框
+              Positioned(
+                left: fx(181.09),
+                top: fy(470),
+                width: fw(218),
+                height: fh(54),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color.fromRGBO(129, 189, 195, 1), width: 3),
+                  ),
+                  child: Center(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.red, size: 40),
-                    onPressed: () {
-                      setState(() {});
-                    },
+
+              // 愛心按鈕
+              Positioned(
+                left: fx(244.14),
+                top: fy(694.04),
+                width: fw(114.57),
+                height: fh(112.72),
+                child: Container(
+                  decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black26, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                  child: IconButton(
+                    onPressed:  _likeActivity,
+                    icon: Image.asset("assets/heart.png"),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.favorite, color: Colors.green, size: 40),
-                    onPressed: () async {
-                      final likedBy = List<String>.from(data['likedBy'] ?? []);
-                      final groupLimit = data['groupLimit'] ?? 5;
-                      final groupId = data['groupId'];
-
-                      await currentDoc.reference.update({
-                        'likedBy': FieldValue.arrayUnion([currentUserId])
-                      });
-
-                      if (groupId == null && likedBy.length + 1 >= groupLimit) {
-                        final newGroup = await _firestore.collection('groupChats').add({
-                          'activityId': currentDoc.id,
-                          'members': [...likedBy, currentUserId],
-                          'createdAt': FieldValue.serverTimestamp(),
-                        });
-
-                        await currentDoc.reference.update({
-                          'groupId': newGroup.id
-                        });
-                      }
-
-                      setState(() {});
-                    },
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 20),
+
+              // 叉叉按鈕
+              Positioned(
+                left: fx(56.57),
+                top: fy(694.04),
+                width: fw(114),
+                height: fh(112),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black26, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                    ),
+                  child: IconButton(
+                    onPressed:  _dislikeActivity,
+                    icon: Image.asset("assets/no.png"),
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -591,4 +662,3 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 }
-  
