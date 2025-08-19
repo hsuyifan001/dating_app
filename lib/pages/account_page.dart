@@ -286,12 +286,13 @@ class _AccountPageState extends State<AccountPage> {
         ),
         Expanded(
           flex: 1,
-          child: IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.black),
-            onPressed: () {
-              // TODO: 搜尋或更多功能
-            },
-          ),
+          child: SizedBox(), // 暫時將三個點隱藏起來
+          // child: IconButton(
+          //   icon: const Icon(Icons.more_vert, color: Colors.black),
+          //   onPressed: () {
+          //     // TODO: 搜尋或更多功能
+          //   },
+          // ),
         ),
       ],
     );
