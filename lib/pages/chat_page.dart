@@ -171,12 +171,13 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                   Expanded(
                     flex: 1,
-                    child: IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.black),
-                      onPressed: () {
-                        // TODO: 搜尋或更多功能
-                      },
-                    ),
+                    child: SizedBox(), // 暫時將三個點隱藏起來
+                    // child: IconButton(
+                    //   icon: const Icon(Icons.more_vert, color: Colors.black),
+                    //   onPressed: () {
+                    //     // TODO: 搜尋或更多功能
+                    //   },
+                    // ),
                   ),
                 ],
               ),
@@ -554,29 +555,31 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Text(
-                          "3小時前上線",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        )
+                        // Text(
+                        //   "3小時前上線",
+                        //   style: TextStyle(
+                        //     fontSize: 12,
+                        //     color: Colors.grey,
+                        //   ),
+                        // )
                       ],
                     ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: IconButton(
-                      icon: Icon(Icons.phone, color: Colors.black),
-                      onPressed: () {}
-                    ),
+                    child: SizedBox(), // 暫時將電話按鈕隱藏
+                    // child: IconButton(
+                    //   icon: Icon(Icons.phone, color: Colors.black),
+                    //   onPressed: () {}
+                    // ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: IconButton(
-                      icon: Icon(Icons.more_vert, color: Colors.black),
-                      onPressed: () {}
-                    ),
+                    child: SizedBox(), // 暫時將三個點隱藏起來
+                    // child: IconButton(
+                    //   icon: Icon(Icons.more_vert, color: Colors.black),
+                    //   onPressed: () {}
+                    // ),
                   )
                 ],
               ),

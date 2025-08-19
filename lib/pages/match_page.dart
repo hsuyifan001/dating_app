@@ -110,6 +110,8 @@ class _MatchPageState extends State<MatchPage> {
       print(st);
     }
 
+    print('leftMatches: $leftMatches');
+
     // 1. 取得已推播過的 userId
     Set<String> pushedIds = {};
     try {
@@ -189,7 +191,7 @@ class _MatchPageState extends State<MatchPage> {
         print('[Step 3] 過濾後按愛心使用者數量: ${likedMeUsers.length}');
 
         likedMeUsers = likedMeUsers.take(min(5, leftMatches)).toList();
-        leftMatches = leftMatches <= 5 ? 0 : leftMatches - 5;
+        leftMatches = leftMatches <= likedMeUsers.length ? 0 : leftMatches - likedMeUsers.length;
 
         for (var doc in likedMeUsers) {
           print('[Step 3] LikedMeUserId: ${doc.id}');
@@ -199,6 +201,8 @@ class _MatchPageState extends State<MatchPage> {
       print('[Error Step 3] 取得按愛心使用者資料失敗: $e');
       print(st);
     }
+
+    print('leftMatches: $leftMatches');
 
     // 4. 查詢一次所有候選人（符合性別、學校、系所且未被推播）
     List<DocumentSnapshot> allCandidateDocs = [];
@@ -247,7 +251,7 @@ class _MatchPageState extends State<MatchPage> {
               (doc['habits'] as List).any((habit) => topHabits.contains(habit))))
           .take(min(15, leftMatches))
           .toList();
-      leftMatches = leftMatches <= 15 ? 0 : leftMatches - 15;
+      leftMatches = leftMatches <= filteredUsers.length ? 0 : leftMatches - filteredUsers.length;
 
       // filteredUserIds = filteredUsers.map((doc) => doc.id).toSet();
       print('[Step 5] 過濾後候選人數量: ${filteredUsers.length}');
@@ -259,6 +263,8 @@ class _MatchPageState extends State<MatchPage> {
       print('[Error Step 5] 過濾 tag/habit 使用者失敗: $e');
       print(st);
     }
+
+    print('leftMatches: $leftMatches');
 
     // 6. 從剩下的中隨機選擇
     List<DocumentSnapshot> randomUsers = [];
@@ -274,6 +280,7 @@ class _MatchPageState extends State<MatchPage> {
         ..shuffle();
       randomSelection = randomUsers.take(leftMatches).toList();
       print('[Step 6] 隨機選擇人數: ${randomSelection.length}');
+      leftMatches -= randomSelection.length;
 
       for (var doc in randomSelection) {
         print('[Step 6] RandomSelection: ${doc.id} - ${doc['name']}');
@@ -283,8 +290,60 @@ class _MatchPageState extends State<MatchPage> {
       print(st);
     }
 
+    print('leftMatches: $leftMatches');
+
+    // 把不符合的人也加入
+    List<DocumentSnapshot> excludedUsers = [];
+    if (leftMatches > 0) {
+      try {
+        print('[Step 6] 把不符合的人也加入');
+        // 限制查詢數量，提高效率
+        final allUsersSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .get();
+
+        excludedUsers = allUsersSnapshot.docs.where((doc) {
+          final isSelf = doc.id == currentUserId;
+          final isPushed = pushedIds.contains(doc.id);
+          final isDailyMatched = dailyMatchIds.contains(doc.id);
+          final isInPreviousLists = users.map((d) => d.id).contains(doc.id) ||
+              likedMeUsers.map((d) => d.id).contains(doc.id) ||
+              filteredUsers.map((d) => d.id).contains(doc.id) ||
+              randomUsers.map((d) => d.id).contains(doc.id);
+
+          return !isSelf && !isPushed && !isDailyMatched && !isInPreviousLists;
+        }).toList();
+
+        leftMatches -= excludedUsers.length;
+
+        print('[Step 6] 被排除的人數: ${excludedUsers.length}');
+        for (var doc in excludedUsers) {
+          final name = doc['name'] ?? '未知用戶';
+          print('[Step 6] ExcludedUser: ${doc.id} - $name');
+        }
+
+        if (excludedUsers.isEmpty && leftMatches > 0) {
+          print('[Step 6] 無符合條件的排除用戶，考慮放寬條件或通知用戶');
+          // 可選：顯示提示
+          // if (context.mounted) {
+          //   ScaffoldMessenger.of(context).showSnackBar(
+          //     const SnackBar(content: Text('無更多用戶可推薦，請明天再試！')),
+          //   );
+          // }
+        }
+      } catch (e, st) {
+        print('[Error Step 6] 把不符合的人也加入失敗: $e');
+        print(st);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('載入推薦用戶失敗，請稍後再試')),
+          );
+        }
+      }
+    }
+
     // 7. 合併推薦名單
-    final recommendedUsers = [...users, ...likedMeUsers, ...filteredUsers, ...randomSelection];
+    final recommendedUsers = [...users, ...likedMeUsers, ...filteredUsers, ...randomSelection, ...excludedUsers];
     print('[Step 7] 合併推薦名單數量: ${recommendedUsers.length}');
 
     setState(() {
