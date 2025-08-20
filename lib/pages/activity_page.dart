@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart'; // 用來格式化日期，需在pubspec.yaml加入 intl 套件
+import 'package:auto_size_text/auto_size_text.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key});
@@ -55,155 +60,359 @@ class _ActivityPageState extends State<ActivityPage> {
   Future<void> _showCreateActivityDialog() async {
     final _formKey = GlobalKey<FormState>();
     String? title;
-    String? imageUrl;
     String? location;
     DateTime? dateTime;
     String? description;
     int? numberToCreateGroup;
     int? numberOfPeopleInGroup;
+    XFile? pickedImage;
+    String? imageUrl;
+
+    final ImagePicker picker = ImagePicker();
 
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('創建活動'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 活動名稱
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: '活動名稱'),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? '請輸入活動名稱' : null,
-                    onSaved: (value) => title = value,
-                  ),
-                  // 活動圖片 URL（簡化用 URL 輸入）
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: '圖片 URL'),
-                    onSaved: (value) => imageUrl = value,
-                  ),
-                  // 活動地點
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: '地點'),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? '請輸入地點' : null,
-                    onSaved: (value) => location = value,
-                  ),
-                  // 活動時間 Picker（簡化為文字輸入，推薦後續改用 DateTimePicker）
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: '時間(yyyy-MM-dd HH:mm)'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return '請輸入時間';
-                      }
-                      try {
-                        dateTime = DateTime.parse(value);
-                      } catch (e) {
-                        return '時間格式錯誤';
-                      }
-                      return null;
-                    },
-                  ),
-                  // 活動說明
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: '活動說明'),
-                    onSaved: (value) => description = value,
-                    maxLines: 3,
-                  ),
-                  // 建立群組人數
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: '建立群組人數'),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return '請輸入建立群組人數';
-                      }
-                      final numVal = int.tryParse(value);
-                      if (numVal == null || numVal <= 0) {
-                        return '請輸入正確的數字';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) =>
-                        numberToCreateGroup = int.tryParse(value ?? ''),
-                  ),
-                  // 活動人數上限
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: '活動人數上限'),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return '請輸入活動人數上限';
-                      }
-                      final numVal = int.tryParse(value);
-                      if (numVal == null || numVal <= 0) {
-                        return '請輸入正確的數字';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) =>
-                        numberOfPeopleInGroup = int.tryParse(value ?? ''),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('取消'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            ElevatedButton(
-              child: const Text('儲存'),
-              onPressed: () async {
-                if (_formKey.currentState?.validate() ?? false) {
-                  _formKey.currentState?.save();
 
-                  // 取得目前使用者 ID 作為創建者
-                  final userCreate = FirebaseAuth.instance.currentUser?.uid;
-                  if (userCreate == null) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('您尚未登入')));
-                    return;
-                  }
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Future<void> _pickImage() async {
+              final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70); // 壓縮
+              if (image != null) {
+                setState(() {
+                  pickedImage = image;
+                });
+              }
+            }
 
-                  final docRef = FirebaseFirestore.instance.collection('activities').doc();
-
-                  await docRef.set({
-                    "createdAt": FieldValue.serverTimestamp(),
-                    "date": dateTime,
-                    "imageUrl": imageUrl ?? '',
-                    "title": title ?? '',
-                    "url": null,
-                    "source": 'user',
-                    "likedBy": [userCreate],
-                    "dislikedBy": [],
-                    "hasInGroupChat": [],
-                    "NumberToCreateGroup": numberToCreateGroup ?? 1,
-                    "NumberOfPeopleInGroup": numberOfPeopleInGroup ?? 1,
-                    "groupId": null,
-                    "location": location ?? '',
-                    "description": description ?? '',
+            Future<void> _pickDateTime() async {
+              final now = DateTime.now();
+              final date = await showDatePicker(
+                context: context,
+                initialDate: now,
+                firstDate: now,
+                lastDate: DateTime(now.year + 1),
+              );
+              if (date != null) {
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.now(),
+                );
+                if (time != null) {
+                  setState(() {
+                    dateTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
                   });
-
-                  Navigator.of(context).pop();
-
-                  // 重新載入活動列表或給予提示
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('活動已創建')));
-                  _loadActivity();
                 }
-              },
-            )
-          ],
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('創建活動'),
+              content: SizedBox(
+                width: 400,
+                height: 500, // ✅ 固定 Dialog 高度
+                child:SingleChildScrollView(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 活動名稱
+                        TextFormField(
+                          decoration: const InputDecoration(labelText: '活動名稱'),
+                          validator: (value) =>
+                              value == null || value.isEmpty ? '請輸入活動名稱' : null,
+                          onSaved: (value) => title = value,
+                        ),
+                        const SizedBox(height: 10),
+                        // 活動圖片
+                        Row(
+                          children: [
+                            pickedImage == null
+                                ? const Text("尚未選擇圖片")
+                                : Image.file(
+                                    File(pickedImage!.path),
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                  ),
+                            const SizedBox(width: 10),
+                            ElevatedButton(
+                              onPressed: _pickImage,
+                              child: const Text("選擇圖片"),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // 活動地點
+                        TextFormField(
+                          decoration: const InputDecoration(labelText: '地點'),
+                          validator: (value) =>
+                              value == null || value.isEmpty ? '請輸入地點' : null,
+                          onSaved: (value) => location = value,
+                        ),
+                        const SizedBox(height: 10),
+                        // 活動時間 Picker
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                dateTime == null
+                                    ? "尚未選擇時間"
+                                    : "${dateTime!.year}-${dateTime!.month}-${dateTime!.day} ${dateTime!.hour}:${dateTime!.minute.toString().padLeft(2, '0')}",
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: _pickDateTime,
+                              child: const Text("選擇時間"),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // 活動說明 ✅ 改這裡
+                        SizedBox(
+                          height: 100, // 限制輸入框高度
+                          width: 400,
+                          child: TextFormField(
+                            decoration: const InputDecoration(labelText: '活動說明'),
+                            onSaved: (value) => description = value,
+                            keyboardType: TextInputType.multiline,
+                            maxLines: null,   // 允許多行
+                            expands: true,    // 填滿 SizedBox
+                            maxLength: 200,   // 限制200字
+                            validator: (value) {
+                              if (value != null && value.length > 200) {
+                                return '活動說明不能超過200字';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        // 建立群組人數
+                        TextFormField(
+                          decoration: const InputDecoration(labelText: '建立群組人數'),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return '請輸入建立群組人數';
+                            }
+                            final numVal = int.tryParse(value);
+                            if (numVal == null || numVal <= 0) {
+                              return '請輸入正確的數字';
+                            }
+                            return null;
+                          },
+                          onSaved: (value) =>
+                              numberToCreateGroup = int.tryParse(value ?? ''),
+                        ),
+                        // 活動人數上限
+                        TextFormField(
+                          decoration: const InputDecoration(labelText: '活動人數上限'),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return '請輸入活動人數上限';
+                            }
+                            final numVal = int.tryParse(value);
+                            if (numVal == null || numVal <= 0) {
+                              return '請輸入正確的數字';
+                            }
+                            return null;
+                          },
+                          onSaved: (value) =>
+                              numberOfPeopleInGroup = int.tryParse(value ?? ''),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      child: const Text('取消'),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    TextButton(
+                      child: const Text('我的活動'),
+                      onPressed: () {
+                        final userId = FirebaseAuth.instance.currentUser?.uid;
+                        if (userId == null) return;
+
+                        final todayKey = DateFormat("yyyyMMdd").format(DateTime.now());
+                        final userActivityRef = FirebaseFirestore.instance
+                            .collection("users")
+                            .doc(userId)
+                            .collection("activity")
+                            .doc(todayKey);
+
+                        showDialog(
+                          context: context,
+                          builder: (_) {
+                            return AlertDialog(
+                              title: const Text("我的活動"),
+                              content: SizedBox(
+                                width: double.maxFinite,
+                                height: 300,
+                                child: StreamBuilder<DocumentSnapshot>(
+                                  stream: userActivityRef.snapshots(),
+                                  builder: (context, snapshot) {
+                                    if (!snapshot.hasData) {
+                                      return const Center(child: CircularProgressIndicator());
+                                    }
+
+                                    final data = snapshot.data?.data() as Map<String, dynamic>?;
+                                    final activityIds = (data?["activityIds"] as List?) ?? [];
+
+                                    if (activityIds.isEmpty) {
+                                      return const Center(child: Text("今天還沒有活動"));
+                                    }
+
+                                    return ListView.builder(
+                                      itemCount: activityIds.length,
+                                      itemBuilder: (context, index) {
+                                        final activityId = activityIds[index];
+                                        return FutureBuilder<DocumentSnapshot>(
+                                          future: FirebaseFirestore.instance
+                                              .collection("activities")
+                                              .doc(activityId)
+                                              .get(),
+                                          builder: (context, activitySnap) {
+                                            if (!activitySnap.hasData) {
+                                              return const ListTile(
+                                                  title: Text("載入中..."));
+                                            }
+                                            final actData =
+                                                activitySnap.data?.data() as Map<String, dynamic>?;
+                                            if (actData == null) {
+                                              return const ListTile(
+                                                  title: Text("活動已刪除"));
+                                            }
+                                            return ListTile(
+                                              title: Text(actData["title"] ?? "未命名活動"),
+                                              subtitle: Text(actData["location"] ?? ""),
+                                              trailing: IconButton(
+                                                icon: const Icon(Icons.delete),
+                                                onPressed: () async {
+                                                  // 刪掉活動文件
+                                                  await FirebaseFirestore.instance
+                                                      .collection("activities")
+                                                      .doc(activityId)
+                                                      .delete();
+
+                                                  // 從使用者紀錄中移除
+                                                  await userActivityRef.set({
+                                                    "activityIds":
+                                                        FieldValue.arrayRemove([activityId])
+                                                  }, SetOptions(merge: true));
+
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(content: Text("已刪除活動")),
+                                                  );
+                                                },
+                                              ),
+                                            );
+                                          },
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+
+                    ElevatedButton(
+                      child: const Text('儲存'),
+                      onPressed: () async {
+                        if (_formKey.currentState?.validate() ?? false) {
+                          _formKey.currentState?.save();
+
+                          final userCreate = FirebaseAuth.instance.currentUser?.uid;
+                          if (userCreate == null) {
+                            Navigator.of(context).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('您尚未登入')));
+                            return;
+                          }
+
+                          // 檢查是否超過每日限制
+                          final todayKey =
+                              DateFormat("yyyyMMdd").format(DateTime.now());
+                          final userActivityRef = FirebaseFirestore.instance
+                              .collection("users")
+                              .doc(userCreate)
+                              .collection("activity")
+                              .doc(todayKey);
+
+                          final snapshot = await userActivityRef.get();
+                          final createdList =
+                              (snapshot.data()?["activityIds"] as List?) ?? [];
+
+                          if (createdList.length >= 3) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("每天最多創建 3 個活動")));
+                            return;
+                          }
+
+                          // 上傳圖片
+                          if (pickedImage != null) {
+                            final ref = FirebaseStorage.instance
+                                .ref()
+                                .child("activityImages/${DateTime.now().millisecondsSinceEpoch}.jpg");
+                            await ref.putFile(File(pickedImage!.path));
+                            imageUrl = await ref.getDownloadURL();
+                          }
+
+                          final docRef = FirebaseFirestore.instance
+                              .collection('activities')
+                              .doc();
+
+                          await docRef.set({
+                            "createdAt": FieldValue.serverTimestamp(),
+                            "date": dateTime,
+                            "imageUrl": imageUrl ?? '',
+                            "title": title ?? '',
+                            "url": null,
+                            "source": 'user',
+                            "likedBy": [userCreate],
+                            "dislikedBy": [],
+                            "hasInGroupChat": [],
+                            "NumberToCreateGroup": numberToCreateGroup ?? 1,
+                            "NumberOfPeopleInGroup": numberOfPeopleInGroup ?? 1,
+                            "groupId": null,
+                            "location": location ?? '',
+                            "description": description ?? '',
+                          });
+
+                          // 記錄到使用者 activity 清單
+                          await userActivityRef.set({
+                            "activityIds": FieldValue.arrayUnion([docRef.id])
+                          }, SetOptions(merge: true));
+
+                          Navigator.of(context).pop();
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('活動已創建')));
+                          _loadActivity();
+                        }
+                      },
+                    )
+                  ],
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
+
 
   Future<void> _dislikeActivity() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -231,7 +440,7 @@ class _ActivityPageState extends State<ActivityPage> {
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.only(left: 25, top: 248, right: 24, bottom: 24),
+          insetPadding: EdgeInsets.zero, // 移除預設邊距以便精確控制
           child: SizedBox(
             width: 363,
             height: 253,
@@ -424,11 +633,21 @@ class _ActivityPageState extends State<ActivityPage> {
 
     final String imageUrl = activity!['imageUrl'] ?? '';
     final String title = activity!['title'] ?? '';
-    final String date = activity!['Date'] ?? '無日期資料';
-    final String source = activity!['source'] ?? '無來源資料';
+    final timestamp = activity!['date'];
+    final String source = activity!['source'] ?? '';
     final String url = activity!['url'] ?? '';
+    final String description = activity!['description'] ?? '';
+    final String location = activity!['location'] ?? '';
 
-
+    // 判斷 timestamp 是否為 Timestamp 並轉成 DateTime
+    DateTime? dateTime;
+    if (timestamp != null) {
+      dateTime = (timestamp as Timestamp).toDate();
+    }
+    // 格式化日期格式，可自訂格式
+    final date = dateTime != null 
+    ? DateFormat('yyyy-MM-dd HH:mm').format(dateTime) 
+    : '';
 
     return Scaffold(
       backgroundColor: const Color(0xFCD3F8F3),
@@ -461,6 +680,8 @@ class _ActivityPageState extends State<ActivityPage> {
           double fh(double px) => bgHeight * (px / figmaHeight);
           double fx(double px) => bgLeft + bgWidth * (px / figmaWidth);
           double fy(double px) => bgTop + bgHeight * (px / figmaHeight);
+          double baseFontSize = MediaQuery.of(context).size.width < 360 ? 14 : 18;
+
 
           return Stack(
             children: [
@@ -480,10 +701,21 @@ class _ActivityPageState extends State<ActivityPage> {
                       side: const BorderSide(color: Colors.black, width: 2),
                     ),
                   ),
-                  child: const Text(
-                    "創建活動",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child:FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: const Text(
+                      "創建活動",
+                      style: const TextStyle(
+                        fontFamily: 'Kiwi Maru',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 20,
+                        color: Colors.black,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+
+                    ),
+                  )
+                  
                 ),
               ),
 
@@ -500,7 +732,7 @@ class _ActivityPageState extends State<ActivityPage> {
                       )
                     : Image.network(
                         imageUrl,
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
                           // 網路圖片抓取失敗時，顯示預設圖片
                           return Image.asset(
@@ -511,55 +743,89 @@ class _ActivityPageState extends State<ActivityPage> {
                       ),
               ),
 
-              // 活動詳細內容背景 + 文字
               Positioned(
-                left: fx(-2),
+                left: fx(0),  // 適當調整
                 top: fy(530),
                 width: fw(424),
-                height: fh(157),
+                height: fh(217),
                 child: Stack(
                   children: [
                     Image.asset(
                       "assets/activity_detail.png",
                       fit: BoxFit.fill,
                       width: fw(424),
-                      height: fh(157),
+                      height: fh(217),
                     ),
+                    // 文字區容器，限定寬高以確保滾動範圍
                     Positioned(
-                      left: fx(-60),
-                      top: fy(10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '活動名稱：$title',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                          ),
-                          Text(
-                            '日期：$date',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                          ),
+                      left: fw(40),
+                      top: fh(30),
+                      width: fw(350), 
+                      height: fh(157),  // 略小於整體高度留下padding
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           
-                          Text(
-                            '來源：$source',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 6),
-                          url.isNotEmpty
-                              ? GestureDetector(
-                                  behavior: HitTestBehavior.translucent,
-                                  onTap: () => _launchURL(context, url),
-                                  child: Text(
-                                    '更多資訊連結',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.blue,
-                                      decoration: TextDecoration.underline,
-                                    ),
+                          children: [
+                            // 使用 AutoSizeText 替代 Text，方便縮放字體
+                            if (title.isNotEmpty)
+                              AutoSizeText(
+                                title,
+                                style: TextStyle(fontSize: baseFontSize,fontWeight: FontWeight.bold),
+                                minFontSize: 8,
+                                maxFontSize: baseFontSize,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            if (date.isNotEmpty)
+                              AutoSizeText(
+                                '日期：$date',
+                                style:  TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                maxLines: 1,
+                                minFontSize: 10,
+                                maxFontSize: baseFontSize,
+                              ),
+                            if (source.isNotEmpty)
+                              AutoSizeText(
+                                '來源：$source',
+                                style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                maxLines: 1,
+                                minFontSize: 10,
+                                maxFontSize: baseFontSize,
+                              ),
+                            if (location.isNotEmpty)
+                              AutoSizeText(
+                                '地點：$location',
+                                style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                maxLines: 1,
+                                minFontSize: 10,
+                                maxFontSize: baseFontSize,
+                              ),
+                            if (description.isNotEmpty)
+                              AutoSizeText(
+                                '說明：$description',
+                                style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                minFontSize: 10,
+                                maxFontSize: baseFontSize,
+                              ),
+                            const SizedBox(height: 6),
+                            if (url.isNotEmpty)
+                              GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTap: () => _launchURL(context, url),
+                                child: AutoSizeText(
+                                  '更多資訊連結',
+                                  style: TextStyle(
+                                    fontSize: baseFontSize,
+                                    color: Colors.blue,
+                                    decoration: TextDecoration.underline,
                                   ),
-                                )
-                              : const SizedBox.shrink(),
-                        ],
+                                  minFontSize: 10,
+                                  maxFontSize: baseFontSize,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -590,15 +856,20 @@ class _ActivityPageState extends State<ActivityPage> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: const Color.fromRGBO(129, 189, 195, 1), width: 3),
+                    border: Border.all(color: const Color.fromRGBO(129, 189, 195, 1), width: 3),
                   ),
                   child: Center(
-                    child: Text(
-                      title,
+                    child: AutoSizeText(
+                      "  "+title,
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+                        fontFamily: 'Kiwi Maru',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 25,
+                        color: Colors.black,
+                      ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      minFontSize: 12,   // 設定字體縮放的最小尺寸，避免裁切
                     ),
                   ),
                 ),
@@ -607,7 +878,7 @@ class _ActivityPageState extends State<ActivityPage> {
               // 愛心按鈕
               Positioned(
                 left: fx(244.14),
-                top: fy(694.04),
+                top: fy(744.04),
                 width: fw(114.57),
                 height: fh(112.72),
                 child: Container(
@@ -633,7 +904,7 @@ class _ActivityPageState extends State<ActivityPage> {
               // 叉叉按鈕
               Positioned(
                 left: fx(56.57),
-                top: fy(694.04),
+                top: fy(744.04),
                 width: fw(114),
                 height: fh(112),
                 child: Container(

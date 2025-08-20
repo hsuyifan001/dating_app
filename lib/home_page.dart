@@ -25,6 +25,17 @@ class _HomePageState extends State<HomePage> {
     const AccountPage(),
   ];
 
+  double getBottomNavBarHeight(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    if (screenHeight < 700) {
+      return 50; // 小螢幕用小高度
+    } else if (screenHeight < 900) {
+      return 60; // 中等螢幕
+    } else {
+      return 70; // 大螢幕
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
