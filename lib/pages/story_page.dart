@@ -257,11 +257,11 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
 
 
   void _toggleLike(String userId, String storyId, List likes) async {
-    final ref = FirebaseFirestore.instance
+    /*final ref = FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
         .collection('stories')
-        .doc(storyId);
+        .doc(storyId);*/
 
     final hasLiked = likes.contains(currentUser.uid);
     

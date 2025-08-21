@@ -536,10 +536,20 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                     flex: 3,
                     child: CircleAvatar(
                       radius: 22,
-                      backgroundImage: NetworkImage(widget.avatarUrl),
+                        backgroundColor: Colors.transparent,
+                        child: widget.avatarUrl.isEmpty
+                            ? const Icon(Icons.person, color: Colors.white)
+                            : ClipOval(
+                                child: FittedBox(
+                                  fit: BoxFit.contain,
+                                  child: Image.network(widget.avatarUrl),
+                                ),
+                              ),
+
+                      /*backgroundImage: NetworkImage(widget.avatarUrl), 
                       child: widget.avatarUrl.isEmpty
                           ? const Icon(Icons.person, color: Colors.white) // 如果 asset 載不到，至少會顯示這個 icon
-                          : null,
+                          : null,*/
                     ),
                   ),
                   const SizedBox(width: 8),
