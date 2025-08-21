@@ -97,7 +97,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
   String? gender;
   Set<String> matchgender = {};
   String? genderDetail; // 記得刪掉
-  String? orientation;
+  //String? orientation;
   final TextEditingController selfIntroController = TextEditingController();
 
   Set<String> selectedTags = {};
@@ -393,7 +393,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
 
       // 單選
       gender = data['gender'];
-      orientation = data['orientation'];
+      //orientation = data['orientation'];
       selectedMBTI = data['mbti'];
       selectedZodiac = data['zodiac'];
       selectededucationLevels = data['educationLevels'];

@@ -741,7 +741,7 @@ class _MatchPageState extends State<MatchPage> {
                 height: bgWidth * (287.0 / figmaWidth), // 保持正方形
                 child: GestureDetector(
                   onTap: users.isNotEmpty
-                    ? () => _showUserDetail(context, users[currentMatchIdx].data() as Map)
+                    ? () => _showUserDetail(  context,  Map<String, dynamic>.from(users[currentMatchIdx].data() as Map),)
                     : null,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
@@ -921,69 +921,241 @@ class _MatchPageState extends State<MatchPage> {
   }
 
 
-  void _showUserDetail(BuildContext context, Map userData) {
-  showModalBottomSheet(
-    context: context,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (context) {
-      return Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 頭像
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: userData['photoUrl'] != null && userData['photoUrl'].toString().isNotEmpty
-                    ? Image.network(
-                        userData['photoUrl'],
-                        width: 120,
-                        height: 120,
-                        fit: BoxFit.cover,
-                      )
-                    : Image.asset(
-                        'assets/match_default.jpg',
-                        width: 120,
-                        height: 120,
-                        fit: BoxFit.cover,
+  // 顯示使用者詳細資料
+  void _showUserDetail(BuildContext context, Map<String, dynamic> userData) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    // 基準尺寸 (Figma 畫布)
+    const baseWidth = 412.0;
+    const baseHeight = 917.0;
+
+    // 依據螢幕比例計算縮放
+    double w(double value) => value * screenWidth / baseWidth;
+    double h(double value) => value * screenHeight / baseHeight;
+
+    final double tagWidth = w(85);
+    final double tagSpacing = w(12);
+    final double maxWrapWidth = tagWidth * 3 + tagSpacing * 2;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return FractionallySizedBox(
+          heightFactor: 0.75, // 佔螢幕 75%
+          child: Padding(
+            padding: EdgeInsets.all(w(14)),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: h(10)),
+
+                  // 頭像 + 姓名 + icon 疊加
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // 頭像
+                      Container(
+                        width: w(102),
+                        height: w(102),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color.fromRGBO(255, 200, 202, 1),
+                            width: 5,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          backgroundImage: (userData['photoUrl'] != null &&
+                                  userData['photoUrl'].toString().isNotEmpty)
+                              ? NetworkImage(userData['photoUrl'])
+                              : const AssetImage('assets/match_default.jpg')
+                                  as ImageProvider,
+                          backgroundColor: Colors.transparent,
+                        ),
                       ),
+
+                      SizedBox(width: w(15)),
+
+                      // 姓名
+                      Expanded(
+                        child: SizedBox(
+                          height: w(102),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                userData['name'] ?? '未設定名稱',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Kiwi Maru',
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 24,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // icon
+                      SizedBox(
+                        width: w(102),
+                        height: w(102),
+                        child: Transform.rotate(
+                          angle: 14.53 * 3.1415926535 / 180,
+                          child: Image.asset(
+                            'assets/icon.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: h(40)),
+
+                  Transform.translate(
+                    offset: Offset(0, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInfoLine("學校", userData['school']),
+                        _buildInfoLine("科系", userData['department']),
+                        _buildInfoLine("學歷", userData['educationLevels']),
+                        _buildInfoLine("性別", userData['gender']),
+                        _buildInfoLine("生日", userData['birthday']),
+                        _buildInfoLine("身高", userData['height']),
+                        _buildInfoLine("MBTI", userData['mbti']),
+                        _buildInfoLine("星座", userData['zodiac']),
+                        const SizedBox(height: 12),
+
+                        // 自我介紹
+                        Text(
+                          '自我介紹：',
+                          style: const TextStyle(
+                            fontFamily: 'Kiwi Maru',
+                            fontWeight: FontWeight.w500,
+                            fontSize: 22,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          userData['selfIntro'] ?? '尚未填寫',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: h(20)),
+
+                  // 個性標籤
+                  if (userData['tags'] != null && userData['tags'] is List)
+                    _buildTagBlock("個性標籤", userData['tags'], tagWidth, tagSpacing, maxWrapWidth, h),
+
+                  SizedBox(height: h(20)),
+
+                  // 習慣
+                  if (userData['habits'] != null && userData['habits'] is List)
+                    _buildTagBlock("興趣", userData['habits'], tagWidth, tagSpacing, maxWrapWidth, h),
+                ],
               ),
-              const SizedBox(height: 16),
-              // 名字
-              Text(
-                userData['name'] ?? '',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              // 學校
-              if (userData['school'] != null)
-                Text(
-                  userData['school'],
-                  style: const TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-              const SizedBox(height: 8),
-              // 標籤
-              if (userData['tags'] != null && userData['tags'] is List)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: (userData['tags'] as List)
-                      .take(10)
-                      .map<Widget>((tag) => Chip(
-                            label: Text(tag.toString()),
-                            backgroundColor: Colors.pink.shade50,
-                          ))
-                      .toList(),
-                ),
-              // 你可以根據 userData 增加更多欄位（MBTI、星座、興趣等）
-            ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 共用文字列 (key: value)
+  Widget _buildInfoLine(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        '$label：${value ?? '尚未填寫'}',
+        style: const TextStyle(
+          fontFamily: 'Kiwi Maru',
+          fontWeight: FontWeight.w500,
+          fontSize: 20,
+          color: Colors.black,
+        ),
+      ),
+    );
+  }
+
+  /// 共用多選區塊 (Wrap)
+  Widget _buildTagBlock(String title, List<dynamic> items, double tagWidth,
+      double tagSpacing, double maxWrapWidth, double Function(double) h) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$title：',
+          style: const TextStyle(
+            fontFamily: 'Kiwi Maru',
+            fontWeight: FontWeight.w600,
+            fontSize: 22,
+            color: Colors.black,
           ),
         ),
-      );
-    },
-  );
-}
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.topLeft,
+          child: Container(
+            width: maxWrapWidth,
+            child: Wrap(
+              spacing: tagSpacing,
+              runSpacing: h(8),
+              children: [
+                for (int i = 0; i < items.length; i++)
+                  Container(
+                    width: tagWidth,
+                    height: h(39),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.pink.shade100, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.pink.shade50,
+                          blurRadius: 2,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        "  ${items[i]}  ",
+                        style: const TextStyle(
+                          color: Colors.pink,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
 }
