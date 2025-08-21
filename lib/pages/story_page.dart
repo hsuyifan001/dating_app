@@ -124,51 +124,180 @@ class _StoryPageState extends State<StoryPage> {
 void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) async {
   final textController = TextEditingController(text: existingData?['text'] ?? '');
   final ImagePicker picker = ImagePicker();
-  List<XFile> images = [];
+  List<XFile> newImages = []; // 新選的圖片，尚未上傳
+  List<String> uploadedImages = existingData?['photoUrls'] != null
+      ? List<String>.from(existingData!['photoUrls'])
+      : [];
   int step = 0; // 0 = 選圖片, 1 = 輸入文字
+  final PageController pageController = PageController();
+  int currentIndex = 0;
 
   await showDialog(
     context: context,
     builder: (_) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
-        title: Text(storyId == null ? '新增動態' : '編輯動態'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
+      builder: (context, setState) {
+        final screenHeight = MediaQuery.of(context).size.height;
+
+        // 總圖片數（已上傳 + 新選）
+        int totalImages = uploadedImages.length + newImages.length;
+
+        return AlertDialog(
+          title: Text(storyId == null ? '新增動態' : '編輯動態'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: screenHeight * 0.5,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                if (step == 0) ...[
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final picked = await picker.pickMultiImage();
-                      if (picked.isNotEmpty) {
-                        setState(() => images = picked);
-                      }
-                    },
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('選擇圖片'),
-                  ),
+                Expanded(
+                  child: totalImages == 0
+                      ? Center(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final picked = await picker.pickMultiImage();
+                              if (picked.isNotEmpty) {
+                                setState(() => newImages = picked.take(10).toList());
+                              }
+                            },
+                            icon: const Icon(Icons.photo_library),
+                            label: const Text('選擇圖片'),
+                          ),
+                        )
+                      : PageView.builder(
+                          controller: pageController,
+                          itemCount: totalImages + (totalImages < 10 ? 1 : 0),
+                          onPageChanged: (index) => setState(() => currentIndex = index),
+                          itemBuilder: (context, index) {
+                            if (index < uploadedImages.length) {
+                              // 已上傳圖片
+                              final url = uploadedImages[index];
+                              return Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: Image.network(url, fit: BoxFit.contain),
+                                  ),
+                                  // 刪除叉叉
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: InkWell(
+                                      onTap: () async {
+                                        // 刪除 Storage 中的圖片
+                                        try {
+                                          final ref = FirebaseStorage.instance.refFromURL(url);
+                                          await ref.delete();
+                                        } catch (e) {
+                                          print("刪除圖片失敗: $e");
+                                        }
+                                        setState(() {
+                                          uploadedImages.removeAt(index);
+                                          if (currentIndex >= uploadedImages.length + newImages.length) {
+                                            currentIndex = uploadedImages.length + newImages.length - 1;
+                                          }
+                                        });
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black54,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        padding: const EdgeInsets.all(4),
+                                        child: const Icon(Icons.close, color: Colors.white, size: 20),
+                                      ),
+                                    ),
+                                  ),
+                                  // 頁數標記
+                                  Positioned(
+                                    top: 8,
+                                    left: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        "${index + 1}/${totalImages}",
+                                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            } else if (index < totalImages) {
+                              // 新選圖片
+                              final img = newImages[index - uploadedImages.length];
+                              return Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: Image.file(File(img.path), fit: BoxFit.contain),
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          newImages.removeAt(index - uploadedImages.length);
+                                          if (currentIndex >= uploadedImages.length + newImages.length) {
+                                            currentIndex = uploadedImages.length + newImages.length - 1;
+                                          }
+                                        });
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black54,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        padding: const EdgeInsets.all(4),
+                                        child: const Icon(Icons.close, color: Colors.white, size: 20),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 8,
+                                    left: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        "${index + 1}/${totalImages}",
+                                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            } else {
+                              // 最後一頁：新增圖片
+                              return Center(
+                                child: ElevatedButton.icon(
+                                  onPressed: totalImages < 10
+                                      ? () async {
+                                          final picked = await picker.pickMultiImage();
+                                          if (picked.isNotEmpty) {
+                                            setState(() {
+                                              newImages.addAll(picked);
+                                              if (newImages.length + uploadedImages.length > 10) {
+                                                newImages = newImages.take(10 - uploadedImages.length).toList();
+                                              }
+                                            });
+                                          }
+                                        }
+                                      : null,
+                                  icon: const Icon(Icons.add),
+                                  label: Text('新增圖片 (最多10張)'),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                ),
+                if (step == 1 || totalImages > 0)
                   const SizedBox(height: 10),
-                  if (images.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      children: images
-                          .map((img) => Image.file(File(img.path), width: 80, height: 80))
-                          .toList(),
-                    ),
-                ],
-                if (step == 1) ...[
-                  if (images.isNotEmpty)
-                    SizedBox(
-                      height: 150,
-                      child: PageView(
-                        children: images
-                            .map((img) => Image.file(File(img.path), fit: BoxFit.cover))
-                            .toList(),
-                      ),
-                    ),
-                  const SizedBox(height: 10),
+                if (step == 1)
                   TextField(
                     controller: textController,
                     decoration: const InputDecoration(
@@ -177,83 +306,83 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
                     ),
                     maxLines: 3,
                   ),
-                ],
               ],
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          if (step == 0)
+          actions: [
             TextButton(
-              onPressed: images.isNotEmpty
-                  ? () => setState(() => step = 1)
-                  : null, // 一定要有圖片才能進入下一步
-              child: const Text('下一步'),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
             ),
-          if (step == 1)
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                List<String> uploadedUrls = [];
+            if (step == 0)
+              TextButton(
+                onPressed: totalImages > 0 ? () => setState(() => step = 1) : null,
+                child: const Text('下一步'),
+              ),
+            if (step == 1)
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  List<String> uploadedUrls = [...uploadedImages];
 
-                for (var img in images) {
-                  final Uint8List? compressedImage =
-                      await FlutterImageCompress.compressWithFile(
-                    img.path,
-                    minWidth: 800,
-                    minHeight: 800,
-                    quality: 70,
-                    format: CompressFormat.jpeg,
-                  );
+                  // 上傳新選圖片
+                  for (var img in newImages) {
+                    final Uint8List? compressedImage =
+                        await FlutterImageCompress.compressWithFile(
+                      img.path,
+                      minWidth: 800,
+                      minHeight: 800,
+                      quality: 70,
+                      format: CompressFormat.jpeg,
+                    );
 
-                  if (compressedImage == null) {
-                    throw Exception('壓縮圖片失敗');
+                    if (compressedImage == null) {
+                      throw Exception('壓縮圖片失敗');
+                    }
+
+                    final ref = FirebaseStorage.instance.ref(
+                      'story_images/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg',
+                    );
+
+                    await ref.putData(
+                      compressedImage,
+                      SettableMetadata(contentType: 'image/jpeg'),
+                    );
+
+                    uploadedUrls.add(await ref.getDownloadURL());
                   }
 
-                  final ref = FirebaseStorage.instance.ref(
-                    'story_images/${currentUser.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg',
-                  );
+                  final storyData = {
+                    'text': textController.text.trim(),
+                    'photoUrls': uploadedUrls,
+                    'timestamp': FieldValue.serverTimestamp(),
+                    'likes': existingData?['likes'] ?? [],
+                    'comments': existingData?['comments'] ?? [],
+                  };
 
-                  await ref.putData(
-                    compressedImage,
-                    SettableMetadata(contentType: 'image/jpeg'),
-                  );
+                  final userStoriesRef = FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(currentUser.uid)
+                      .collection('stories');
 
-                  uploadedUrls.add(await ref.getDownloadURL());
-                }
+                  if (storyId == null) {
+                    await userStoriesRef.add(storyData);
+                  } else {
+                    await userStoriesRef.doc(storyId).update(storyData);
+                  }
 
-                final storyData = {
-                  'text': textController.text.trim(),
-                  'photoUrls': uploadedUrls,
-                  'timestamp': FieldValue.serverTimestamp(),
-                  'likes': existingData?['likes'] ?? [],
-                  'comments': existingData?['comments'] ?? [],
-                };
-
-                final userStoriesRef = FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(currentUser.uid)
-                    .collection('stories');
-
-                if (storyId == null) {
-                  await userStoriesRef.add(storyData);
-                } else {
-                  await userStoriesRef.doc(storyId).update(storyData);
-                }
-
-                _loadStories();
-              },
-              child: const Text('發布'),
-            ),
-        ],
-      ),
+                  _loadStories();
+                },
+                child: const Text('發布'),
+              ),
+          ],
+        );
+      },
     ),
   );
 }
+
+
 
 
   void _toggleLike(String userId, String storyId, List likes) async {
