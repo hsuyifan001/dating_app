@@ -1,3 +1,4 @@
+import 'package:dating_app/profile_setup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -537,7 +538,12 @@ class _AccountPageState extends State<AccountPage> {
               width: w(156),
               height: h(55),
               child: ElevatedButton(
-                onPressed: () => showEditBottomSheet(context),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileSetupPage()),
+                  );
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color.fromRGBO(255, 200, 202, 1),
                   foregroundColor: Colors.black,
@@ -546,7 +552,7 @@ class _AccountPageState extends State<AccountPage> {
                     side: const BorderSide(color: Colors.black, width: 2),
                   ),
                 ),
-                child : FittedBox(
+                child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     '編輯個人資料',
@@ -557,7 +563,6 @@ class _AccountPageState extends State<AccountPage> {
                     ),
                   ),
                 ),
-                
               ),
             ),
             SizedBox(

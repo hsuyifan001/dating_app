@@ -76,18 +76,6 @@ class WidthLimitingTextInputFormatter extends TextInputFormatter {
 
 class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerProviderStateMixin {
   File? _selectedImage;
-
-  // final List<_TagAlignData> tags = [
-  //   _TagAlignData('騎貢丸上學', 0.0, -0.4, Color(0xFF56A3E7)),
-  //   _TagAlignData('需要新鮮的肝', -0.9, -0.25, Color(0xFF9BC8F0)),
-  //   _TagAlignData('咖啡因成癮', 0.0, -0.1, Color(0xFF5FBCC7)),
-  //   _TagAlignData('風好大', 0.9, -0.25, Color(0xFF1B578B)),
-  //   _TagAlignData('活動咖', -1.2, 0.0, Color(0xFF5585B0)),
-  //   _TagAlignData('美食探險家', 0.05, 0.18, Color(0xFF5E7FC7)),
-  //   _TagAlignData('哥布林', 1.1, 0.05, Color(0xFF2449B7)),
-  //   _TagAlignData('酒精中毒', -1.0, 0.38, Color(0xFF5D84A6)),
-  //   _TagAlignData('愛睡覺', 1.1, 0.35, Color(0xFF4D6FB7)),
-  // ];
   final List<String> tags = [
     '美食探險家', '咖啡因成癮', '酒精中毒', '需要\n新鮮的肝',
     '騎貢丸上學', '活動咖', '哥布林', '風好大',
@@ -98,36 +86,6 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
     '喜歡散步', '教授\n不要當我', '永遠在餓', '忘東忘西',
     '喜歡曬太陽', '文青', '能躺就躺', '鳩咪',
   ];
-
-  // final List<String> allTags = [
-  //   '活潑開朗',
-  //   '文靜內向',
-  //   '愛冒險',
-  //   '宅在家',
-  //   '愛運動',
-  //   '喜歡閱讀',
-  //   '動漫迷',
-  //   '電影咖',
-  //   '愛旅行',
-  //   '吃貨',
-  //   '早睡型',
-  //   '夜貓子',
-  // ];
-
-  // final Map<String, String> tagDescriptions = {
-  //   '活潑開朗': '喜歡交朋友，氣氛製造機',
-  //   '文靜內向': '內斂溫柔，慢熱型',
-  //   '愛冒險': '喜歡挑戰新鮮事物',
-  //   '宅在家': '在家也能過得精彩',
-  //   '愛運動': '運動是生活的一部分',
-  //   '喜歡閱讀': '沉浸在書香的世界',
-  //   '動漫迷': '追番是生活日常',
-  //   '電影咖': '熱愛各種電影類型',
-  //   '愛旅行': '探索世界、收集回憶',
-  //   '吃貨': '熱愛美食，總想吃點什麼',
-  //   '早睡型': '生活規律，健康作息',
-  //   '夜貓子': '靈感總在深夜爆發',
-  // };
 
   final PageController _pageController = PageController();
   int _currentPage = 0;
@@ -264,7 +222,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
     
     if (_currentPage == 0) {
       final name = nameController.text.trim();
-      if (_selectedImage == null) {
+      if (_selectedImage == null && _photoUrl == null) {
         showAutoDismissDialog('請上傳照片');
         return;
       }
@@ -398,13 +356,6 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
       'createdAt': FieldValue.serverTimestamp(),
       // 'fcmToken': await FirebaseMessaging.instance.getToken(),
     };
-
-    /*if (_selectedImage != null) {
-      final ref = FirebaseStorage.instance.ref().child('user_photos').child('${user.uid}.jpg');
-      await ref.putFile(_selectedImage!);
-      final photoUrl = await ref.getDownloadURL();
-      profileData['photoUrl'] = photoUrl;
-    }*/
     
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set(profileData);
 
@@ -426,6 +377,48 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
     }
   }
 
+  Future<void> _loadUserData() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+  if (doc.exists) {
+    final data = doc.data()!;
+    setState(() {
+      // 基本文字輸入
+      nameController.text = data['name'] ?? '';
+      birthdayController.text = data['birthday'] ?? '';
+      heightController.text = data['height'] ?? '';
+      selfIntroController.text = data['selfIntro'] ?? '';
+
+      // 單選
+      gender = data['gender'];
+      orientation = data['orientation'];
+      selectedMBTI = data['mbti'];
+      selectedZodiac = data['zodiac'];
+      selectededucationLevels = data['educationLevels'];
+      selectedDepartment = data['department'];
+
+      // 多選
+      matchgender = Set<String>.from(data['matchGender'] ?? []);
+      selectedTags = Set<String>.from(data['tags'] ?? []);
+      selectedHabits = Set<String>.from(data['habits'] ?? []);
+      matchSchools = Set<String>.from(data['matchSchools'] ?? []);
+
+      // 布林
+      matchSameDepartment = data['matchSameDepartment'];
+
+      // 照片
+      _photoUrl = data['photoUrl'];
+    });
+  }
+}
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
   @override
   void dispose() {
     _pageController.dispose();
@@ -682,8 +675,11 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
                 ),
                 child: CircleAvatar(
                   radius: 100,
-                  backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : null,
-                  child: _selectedImage == null
+                  backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) // 本地剛選的照片
+                              : (_photoUrl != null && _photoUrl!.isNotEmpty
+                              ? NetworkImage(_photoUrl!) // Firebase 已存的照片
+                              : null),
+                  child: _selectedImage == null && (_photoUrl == null || _photoUrl!.isEmpty)
                       ? const Text('選擇要上傳的照片')
                       : null,
                 ),
@@ -876,40 +872,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
         ],
       ),
     ),
-        // Stack(
-        //   children: [
-        //     // 中央標題
-        //     const Positioned(
-        //       top: 150,
-        //       left: 0,
-        //       right: 0,
-        //       child: Center(
-        //         child: Text(
-        //           '選擇個性化標籤',
-        //           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.brown),
-        //         ),
-        //       ),
-        //     ),
-        //     // 雲朵按鈕們（以中心為原點相對排列）
-        //     ...tags.map((tag) => Align(
-        //           alignment: Alignment(tag.dx, tag.dy),
-        //           child: CloudButtonPainted(
-        //             text: tag.text,
-        //             borderColor: tag.borderColor,
-        //             isSelected: selectedTags.contains(tag.text),
-        //             onTap: () {
-        //               setState(() {
-        //                 if (selectedTags.contains(tag.text)) {
-        //                   selectedTags.remove(tag.text);
-        //                 } else {
-        //                   selectedTags.add(tag.text);
-        //                 }
-        //               });
-        //             },
-        //           ),
-        //         )),
-        //   ],
-        // ),
+
   );
 
   Future<void> _pickImage() async {
