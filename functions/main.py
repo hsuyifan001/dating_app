@@ -58,12 +58,12 @@ def fetch_detail_img_if_valid(url):
         soup = BeautifulSoup(response.text, 'html.parser')
         img_url = soup.select('#relateImg0 > div > img')
         if not img_url:
-            return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQXwODiLQvRBA1BDszB7csUFnWYDEie3epJlQ&s'
+            return None
 
         return "https://osa.nycu.edu.tw" + img_url[0]['src']
     except Exception as e:
         print(f'抓取活動詳細頁失敗: {e}')
-        return 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQXwODiLQvRBA1BDszB7csUFnWYDEie3epJlQ&s'
+        return None
 
 def fetch_nycu_activities():
     firestore_client: google.cloud.firestore.Client = firestore.client()
@@ -97,7 +97,7 @@ def fetch_nycu_activities():
             href = "https://osa.nycu.edu.tw" + a_tag.get('href', '')
             if not ("徵" in title):
                 img_url = fetch_detail_img_if_valid(href)
-                activity = Activity(title, href, "nycu", img_url)
+                activity = Activity(title, href, "課外活動輔導一、二組", img_url)
                 doc_ref = firestore_client.collection('activities').document(activity.id)
                 doc = doc_ref.get()
                 if not doc.exists:
@@ -131,7 +131,7 @@ def fetch_hsin_activities():
             img_url = a_title[i].get('src')
             if "https://i.imgur.com" in img_url:
                 img_url = None
-            activity = Activity(title, href, "hsinchu", img_url)
+            activity = Activity(title, href, "新竹活動大集合", img_url)
             doc_ref = firestore_client.collection('activities').document(activity.id)
             doc = doc_ref.get()
             if not doc.exists:
@@ -163,8 +163,8 @@ def fetch_nthu_activities():
                 title = a.get('title') or a.text.strip()
                 if title != "更多..." and not ("徵" in title) and not ("Recruitment" in title) and not ("招募" in title):
                     activity = Activity(
-                        title, href, "nthu",
-                        'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/NTHU_Round_Seal.svg/1200px-NTHU_Round_Seal.svg.png'
+                        title, href, "清華公佈欄",
+                        None
                     )
                     doc_ref = firestore_client.collection('activities').document(activity.id)
                     doc = doc_ref.get()

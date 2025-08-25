@@ -25,6 +25,9 @@ class _ActivityPageState extends State<ActivityPage> {
   Map<String, dynamic>? activity; // 存放要顯示的活動
   String? activityId;
 
+  bool _hasShownDialog = false; // 加入為 State 成員變數，防止重複彈出
+  bool _hasLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +42,9 @@ class _ActivityPageState extends State<ActivityPage> {
         .collection('activities')
         .get();
 
+    Map<String, dynamic>? firstUnseenActivity;
+    String? currentActivityId;
+
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final likedBy = List<String>.from(data['likedBy'] ?? []);
@@ -48,14 +54,19 @@ class _ActivityPageState extends State<ActivityPage> {
       if (!likedBy.contains(uid) &&
           !dislikedBy.contains(uid) &&
           !hasInGroupChat.contains(uid)) {
-        setState(() {
-          activity = data;
-          activityId = doc.id;
-        });
+        firstUnseenActivity = data;
+        currentActivityId = doc.id;
         break;
       }
     }
+
+    setState(() {
+      activity = firstUnseenActivity;
+      activityId = currentActivityId;
+      _hasLoaded = true;
+    });
   }
+
 
   Future<void> _showCreateActivityDialog() async {
     final _formKey = GlobalKey<FormState>();
@@ -487,7 +498,7 @@ class _ActivityPageState extends State<ActivityPage> {
           });
 
           // 判斷自己是不是最後一個可加入群組的人
-          if (likedBy.length + 1 == numberOfPeopleInGroup) {
+          if (likedBy.length + 1 >= numberOfPeopleInGroup) {
             // 刪除該活動文件
             await FirebaseFirestore.instance
                 .collection('activities')
@@ -534,7 +545,7 @@ class _ActivityPageState extends State<ActivityPage> {
               'groupId': newGroupRef.id,
             });
             
-            if (likedBy.length + 1 == numberOfPeopleInGroup) {
+            if (likedBy.length + 1 >= numberOfPeopleInGroup) {
               // 刪除該活動文件
               await FirebaseFirestore.instance
                   .collection('activities')
@@ -622,22 +633,28 @@ class _ActivityPageState extends State<ActivityPage> {
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     
-    if (activity == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+    // 如果 activity 為 null 且尚未顯示過 Dialog，稍後彈出 Dialog
+    if (_hasLoaded && activity == null && !_hasShownDialog) {
+      // 延遲一點時間等 build 完成後再彈 (避免 setState During build)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showMatchSuccessDialog(context);
+        setState(() {
+          _hasShownDialog = true;
+        });
+      });
     }
 
-    final String imageUrl = activity!['imageUrl'] ?? '';
-    final String title = activity!['title'] ?? '';
-    final timestamp = activity!['date'];
-    final String source = activity!['source'] ?? '';
-    final String url = activity!['url'] ?? '';
-    final String description = activity!['description'] ?? '';
-    final String location = activity!['location'] ?? '';
+    final String imageUrl = activity?['imageUrl'] ?? '';
+    final String title = activity?['title'] ?? '';
+    final timestamp = activity?['date'];
+    final String source = activity?['source'] ?? '';
+    final String url = activity?['url'] ?? '';
+    final String description = activity?['description'] ?? '';
+    final String location = activity?['location'] ?? '';
 
     // 判斷 timestamp 是否為 Timestamp 並轉成 DateTime
     DateTime? dateTime;
