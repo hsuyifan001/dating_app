@@ -78,7 +78,7 @@ class _ActivityPageState extends State<ActivityPage> {
     int? numberOfPeopleInGroup;
     XFile? pickedImage;
     String? imageUrl;
-
+    bool isSaving = false; // 防止多次點擊
     final ImagePicker picker = ImagePicker();
 
     await showDialog(
@@ -341,6 +341,10 @@ class _ActivityPageState extends State<ActivityPage> {
                     ElevatedButton(
                       child: const Text('儲存'),
                       onPressed: () async {
+                        // 🔒 防止多次點擊
+                        if (isSaving) return; 
+                        setState(() => isSaving = true);
+
                         if (_formKey.currentState?.validate() ?? false) {
                           _formKey.currentState?.save();
 
@@ -348,13 +352,13 @@ class _ActivityPageState extends State<ActivityPage> {
                           if (userCreate == null) {
                             Navigator.of(context).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('您尚未登入')));
+                              const SnackBar(content: Text('您尚未登入'))
+                            );
+                            setState(() => isSaving = false); // ✅ 還原按鈕
                             return;
                           }
 
-                          // 檢查是否超過每日限制
-                          final todayKey =
-                              DateFormat("yyyyMMdd").format(DateTime.now());
+                          final todayKey = DateFormat("yyyyMMdd").format(DateTime.now());
                           final userActivityRef = FirebaseFirestore.instance
                               .collection("users")
                               .doc(userCreate)
@@ -362,12 +366,13 @@ class _ActivityPageState extends State<ActivityPage> {
                               .doc(todayKey);
 
                           final snapshot = await userActivityRef.get();
-                          final createdList =
-                              (snapshot.data()?["activityIds"] as List?) ?? [];
+                          final createdList = (snapshot.data()?["activityIds"] as List?) ?? [];
 
                           if (createdList.length >= 3) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("每天最多創建 3 個活動")));
+                              const SnackBar(content: Text("每天最多創建 3 個活動"))
+                            );
+                            setState(() => isSaving = false); // ✅ 還原按鈕
                             return;
                           }
 
@@ -380,10 +385,7 @@ class _ActivityPageState extends State<ActivityPage> {
                             imageUrl = await ref.getDownloadURL();
                           }
 
-                          final docRef = FirebaseFirestore.instance
-                              .collection('activities')
-                              .doc();
-
+                          final docRef = FirebaseFirestore.instance.collection('activities').doc();
                           await docRef.set({
                             "createdAt": FieldValue.serverTimestamp(),
                             "date": dateTime,
@@ -401,7 +403,6 @@ class _ActivityPageState extends State<ActivityPage> {
                             "description": description ?? '',
                           });
 
-                          // 記錄到使用者 activity 清單
                           await userActivityRef.set({
                             "activityIds": FieldValue.arrayUnion([docRef.id])
                           }, SetOptions(merge: true));
@@ -409,9 +410,13 @@ class _ActivityPageState extends State<ActivityPage> {
                           Navigator.of(context).pop();
 
                           ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('活動已創建')));
+                            const SnackBar(content: Text('活動已創建'))
+                          );
                           _loadActivity();
                         }
+
+                        // ✅ 動作完成後恢復按鈕
+                        setState(() => isSaving = false);
                       },
                     )
                   ],

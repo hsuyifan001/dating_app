@@ -624,7 +624,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                     border: Border.all(color: Colors.black, width: 2),
                     borderRadius: BorderRadius.circular(16),
                     image: const DecorationImage(
-                      image: AssetImage('assets/chat_background.png'),
+                      image: AssetImage('assets/chat_background.jpg'),
                       fit: BoxFit.cover,
                     ),
                   ),
