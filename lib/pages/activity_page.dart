@@ -442,10 +442,10 @@ class _ActivityPageState extends State<ActivityPage> {
     });
 
     // 更新完之後再載入下一個活動
-    setState(() {
+    /*setState(() {
       activity = null;
       activityId = null;
-    });
+    });*/
     _loadActivity();
   }
   
@@ -518,6 +518,14 @@ class _ActivityPageState extends State<ActivityPage> {
           await groupChatRef.update({
             'members': FieldValue.arrayUnion([uid]),
             'displayPhotos.$uid': photoUrl,
+          });
+
+          // 把使用者加入活動的 likedBy 陣列
+          await FirebaseFirestore.instance
+              .collection('activities')
+              .doc(activityId)
+              .update({
+            "likedBy": FieldValue.arrayUnion([uid]),
           });
 
           // 判斷自己是不是最後一個可加入群組的人
@@ -639,10 +647,10 @@ class _ActivityPageState extends State<ActivityPage> {
     }
 
     //做完事了
-    setState(() {
+    /*setState(() {
       activity = null;
       activityId = null;
-    });
+    });*/
     _loadActivity();
     return;
   }
@@ -758,22 +766,23 @@ class _ActivityPageState extends State<ActivityPage> {
                 top: fy(110),
                 width: fw(290),
                 height: fh(340),
-                child: imageUrl == null || imageUrl.isEmpty
-                    ? Image.asset(
-                        'assets/activity_default.png',
-                        fit: BoxFit.contain,
-                      )
-                    : Image.network(
-                        imageUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          // 網路圖片抓取失敗時，顯示預設圖片
-                          return Image.asset(
-                            'assets/activity_default.png',
+                child: title=='目前沒有最新活動'? Image.asset('assets/no_activity.jpg',fit: BoxFit.contain,) 
+                    : imageUrl == null || imageUrl.isEmpty
+                        ? Image.asset(
+                            'assets/activity_default.jpg',
                             fit: BoxFit.contain,
-                          );
-                        },
-                      ),
+                          )
+                        : Image.network(
+                            imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              // 網路圖片抓取失敗時，顯示預設圖片
+                              return Image.asset(
+                                'assets/activity_default.jpg',
+                                fit: BoxFit.contain,
+                              );
+                            },
+                          ),
               ),
 
               Positioned(
