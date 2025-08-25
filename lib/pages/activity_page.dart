@@ -475,6 +475,21 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
+  Future<Map<String, String>> fetchDisplayPhotos(List<String> userIds) async {
+    Map<String, String> displayPhotos = {};
+
+    for (String userId in userIds) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && data['photoUrl'] != null) {
+          displayPhotos[userId] = data['photoUrl'];
+        }
+      }
+    }
+
+    return displayPhotos;
+  }
 
   Future<void> _likeActivity() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -492,9 +507,12 @@ class _ActivityPageState extends State<ActivityPage> {
         if (groupId != null) {
           
           // 把使用者加入 chats/groupId/members 陣列
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          final photoUrl = userDoc.data()?['photoUrl'] ?? '';
           final groupChatRef = FirebaseFirestore.instance.collection('chats').doc(groupId);
           await groupChatRef.update({
-            'members': FieldValue.arrayUnion([uid])
+            'members': FieldValue.arrayUnion([uid]),
+            'displayPhotos.$uid': photoUrl,
           });
 
           // 判斷自己是不是最後一個可加入群組的人
@@ -531,6 +549,7 @@ class _ActivityPageState extends State<ActivityPage> {
             await newGroupRef.set({
               'createdAt': FieldValue.serverTimestamp(),
               'members': [...likedBy, uid],
+              'displayPhotos':  await fetchDisplayPhotos([...likedBy, uid]),
               'type': 'activity',
               'groupName': activity!['title'] ?? '活動群組',
               'groupPhotoUrl': activity!['imageUrl'] ?? '',
@@ -584,6 +603,7 @@ class _ActivityPageState extends State<ActivityPage> {
         await newGroupRef.set({
           'createdAt': FieldValue.serverTimestamp(),
           'members': [...likedBy, uid], // 將 likedBy 全部成員搬移
+          'displayPhotos':  await fetchDisplayPhotos([...likedBy, uid]),
           'type': 'activity',
           'groupName': activity!['title'] ?? '活動群組',
           'groupPhotoUrl': activity!['imageUrl'] ?? '',
@@ -637,19 +657,10 @@ class _ActivityPageState extends State<ActivityPage> {
   @override
   Widget build(BuildContext context) {
     
-    // 如果 activity 為 null 且尚未顯示過 Dialog，稍後彈出 Dialog
-    if (_hasLoaded && activity == null && !_hasShownDialog) {
-      // 延遲一點時間等 build 完成後再彈 (避免 setState During build)
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        showMatchSuccessDialog(context);
-        setState(() {
-          _hasShownDialog = true;
-        });
-      });
-    }
+
 
     final String imageUrl = activity?['imageUrl'] ?? '';
-    final String title = activity?['title'] ?? '';
+    final String title = activity?['title'] ?? '目前沒有最新活動';
     final timestamp = activity?['date'];
     final String source = activity?['source'] ?? '';
     final String url = activity?['url'] ?? '';
