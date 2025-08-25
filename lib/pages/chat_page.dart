@@ -242,6 +242,7 @@ class _ChatPageState extends State<ChatPage> {
                         myPhotoUrl = displayPhotos[uid] ?? '';
                       }
                       if(type == 'activity') {
+                        final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
                         myPhotoUrl = chatData['groupPhotoUrl'] ?? '';
                       }
 
