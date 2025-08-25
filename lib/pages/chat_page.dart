@@ -534,22 +534,20 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   ),
                   Expanded(
                     flex: 3,
-                    child: CircleAvatar(
-                      radius: 22,
-                        backgroundColor: Colors.transparent,
+                    child: SizedBox(
+                      width: 44,  // 直徑=radius*2
+                      height: 44,
+                      child: ClipOval(
                         child: widget.avatarUrl.isEmpty
-                            ? const Icon(Icons.person, color: Colors.white)
-                            : ClipOval(
-                                child: FittedBox(
-                                  fit: BoxFit.contain,
-                                  child: Image.network(widget.avatarUrl),
-                                ),
+                            ? Container(
+                                color: Colors.transparent,
+                                child: const Icon(Icons.person, color: Colors.white),
+                              )
+                            : FittedBox(
+                                fit: BoxFit.contain,
+                                child: Image.network(widget.avatarUrl),
                               ),
-
-                      /*backgroundImage: NetworkImage(widget.avatarUrl), 
-                      child: widget.avatarUrl.isEmpty
-                          ? const Icon(Icons.person, color: Colors.white) // 如果 asset 載不到，至少會顯示這個 icon
-                          : null,*/
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -608,7 +606,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                     border: Border.all(color: Colors.black, width: 2),
                     borderRadius: BorderRadius.circular(16),
                     image: const DecorationImage(
-                      image: AssetImage('assets/profile_setup_background.png'),
+                      image: AssetImage('assets/chat_background.png'),
                       fit: BoxFit.cover,
                     ),
                   ),
