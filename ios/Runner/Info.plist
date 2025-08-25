@@ -10,7 +10,7 @@
 	<string>我們需要儲存拍攝的照片到相簿</string>
 	<!-- 添加推播通知權限描述 -->
 	<key>NSUserNotificationsUsageDescription</key>
-	<string>允許陽青椒發送通知以提醒您新訊息或配對成功</string>
+	<string>允許洋青椒發送通知以提醒您新訊息或配對成功</string>
 	<!-- 啟用背景模式以處理推播通知 -->
 	<key>UIBackgroundModes</key>
 	<array>
@@ -20,7 +20,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>陽青椒</string>
+	<string>洋青椒</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

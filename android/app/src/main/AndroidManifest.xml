@@ -18,7 +18,7 @@
     </queries>
 
     <application
-        android:label="陽青椒"
+        android:label="洋青椒"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
