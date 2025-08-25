@@ -344,8 +344,27 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final currentUser = FirebaseAuth.instance.currentUser;
   final TextEditingController messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  Map<String, dynamic> _displayPhotos = {}; // 🆕 新增一個 map 來存頭貼
 
   List<Map<String, dynamic>> _localTempMessages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChatInfo();
+  }
+
+  Future<void> _loadChatInfo() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatRoomId)
+        .get();
+    if (doc.exists) {
+      setState(() {
+        _displayPhotos = (doc.data()?['displayPhotos'] as Map<String, dynamic>?) ?? {};
+      });
+    }
+  }
 
   void _addTempImageMessage(File imageFile) {
     setState(() {
@@ -662,6 +681,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
                             final bool showAvatar = !isMe && !sameAsNext;
 
+                            final senderId = msg['sender'] as String;
+                            final senderPhoto = _displayPhotos[senderId] ?? '';
+
                             return Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -674,8 +696,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                         padding: const EdgeInsets.only(right: 6),
                                         child: CircleAvatar(
                                           radius: 18,
-                                          backgroundImage: NetworkImage(widget.avatarUrl),
+                                          backgroundImage: senderPhoto.isNotEmpty ? NetworkImage(senderPhoto) : null,
                                           backgroundColor: Colors.grey.shade300,
+                                          child: senderPhoto.isEmpty
+                                              ? const Icon(Icons.person, color: Colors.white, size: 18)
+                                              : null,
                                         ),
                                       ),
                                     )
