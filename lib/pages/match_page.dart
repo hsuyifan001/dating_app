@@ -634,8 +634,8 @@ class _MatchPageState extends State<MatchPage> {
           userB: userAName,
         },
         'displayPhotos': {
-          userA: userBDoc.data()?['photoUrl'] ?? '',
-          userB: userADoc.data()?['photoUrl'] ?? '',
+          userA: userADoc.data()?['photoUrl'] ?? '',
+          userB: userBDoc.data()?['photoUrl'] ?? '',
         }
       });
     }
