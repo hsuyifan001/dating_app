@@ -537,17 +537,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                     child: SizedBox(
                       width: 44,  // 直徑=radius*2
                       height: 44,
-                      child: ClipOval(
+                      child: CircleAvatar(
+                        radius: 22, // 等於直徑 44 / 2
+                        backgroundImage: widget.avatarUrl.isEmpty
+                            ? null
+                            : NetworkImage(widget.avatarUrl),
                         child: widget.avatarUrl.isEmpty
-                            ? Container(
-                                color: Colors.transparent,
-                                child: const Icon(Icons.person, color: Colors.white),
-                              )
-                            : FittedBox(
-                                fit: BoxFit.contain,
-                                child: Image.network(widget.avatarUrl),
-                              ),
-                      ),
+                            ? const Icon(Icons.person, color: Colors.white)
+                            : null,
+                      )
                     ),
                   ),
                   const SizedBox(width: 8),
