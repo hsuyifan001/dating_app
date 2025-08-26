@@ -541,7 +541,7 @@ class _AccountPageState extends State<AccountPage> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ProfileSetupPage()),
+                    MaterialPageRoute(builder: (_) => const ProfileSetupPage(isEditing: true)),
                   );
                 },
                 style: ElevatedButton.styleFrom(
