@@ -58,7 +58,7 @@ class _AccountPageState extends State<AccountPage> {
       birthdayController.text = data['birthday'] ?? '';
       bioController.text = data['bio'] ?? '';
       email = data['email'] ?? user.email ?? '';
-      photoURL = data['photoUrl'] ;
+      photoURL = data['photoUrl']  ?? '';
       tags = List<String>.from(data['tags'] ?? []);
       gender = data['gender'] ?? '';
       genderDetail = data['genderDetail'];
@@ -339,9 +339,7 @@ class _AccountPageState extends State<AccountPage> {
                 ),
               ),
               child: CircleAvatar(
-                backgroundImage: (user != null &&
-                        user!.data != null &&
-                        user!.data["photoUrl"] != null)
+                backgroundImage: (photoURL != null && photoURL!.isNotEmpty)
                     ? NetworkImage(photoURL!)
                     : const AssetImage('assets/match_default.jpg') as ImageProvider,
                 backgroundColor: Colors.transparent,
@@ -541,7 +539,7 @@ class _AccountPageState extends State<AccountPage> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ProfileSetupPage(isEditing: true)),
+                    MaterialPageRoute(builder: (_) => const ProfileSetupPage()),
                   );
                 },
                 style: ElevatedButton.styleFrom(
