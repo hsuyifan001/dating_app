@@ -62,7 +62,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '交友軟體',
+      title: '洋青椒',
       theme: ThemeData(
         primarySwatch: Colors.pink,
       ),
@@ -173,7 +173,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
     final String email = googleUser.email;
 
     // 登入前先檢查信箱格式
-    /*if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw')) {
+    if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw')) {
       await googleSignIn.signOut();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -181,7 +181,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
         );
       }
       return;
-    }*/
+    }
 
     // 通過信箱驗證後繼續取得 token 並登入 Firebase
     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;

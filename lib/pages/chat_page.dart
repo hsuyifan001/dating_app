@@ -239,9 +239,12 @@ class _ChatPageState extends State<ChatPage> {
                       String myPhotoUrl = '';
                       if (type == 'match') {
                         final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
-                        myPhotoUrl = displayPhotos[uid] ?? '';
+                        myPhotoUrl = displayPhotos.entries
+                          .firstWhere((entry) => entry.key != uid, orElse: () => const MapEntry('', ''))
+                          .value;
                       }
                       if(type == 'activity') {
+                        final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
                         myPhotoUrl = chatData['groupPhotoUrl'] ?? '';
                       }
 
@@ -344,8 +347,27 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final currentUser = FirebaseAuth.instance.currentUser;
   final TextEditingController messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  Map<String, dynamic> _displayPhotos = {}; // 🆕 新增一個 map 來存頭貼
 
   List<Map<String, dynamic>> _localTempMessages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChatInfo();
+  }
+
+  Future<void> _loadChatInfo() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatRoomId)
+        .get();
+    if (doc.exists) {
+      setState(() {
+        _displayPhotos = (doc.data()?['displayPhotos'] as Map<String, dynamic>?) ?? {};
+      });
+    }
+  }
 
   void _addTempImageMessage(File imageFile) {
     setState(() {
@@ -534,22 +556,18 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   ),
                   Expanded(
                     flex: 3,
-                    child: CircleAvatar(
-                      radius: 22,
-                        backgroundColor: Colors.transparent,
+                    child: SizedBox(
+                      width: 44,  // 直徑=radius*2
+                      height: 44,
+                      child: CircleAvatar(
+                        radius: 22, // 等於直徑 44 / 2
+                        backgroundImage: widget.avatarUrl.isEmpty
+                            ? null
+                            : NetworkImage(widget.avatarUrl),
                         child: widget.avatarUrl.isEmpty
                             ? const Icon(Icons.person, color: Colors.white)
-                            : ClipOval(
-                                child: FittedBox(
-                                  fit: BoxFit.contain,
-                                  child: Image.network(widget.avatarUrl),
-                                ),
-                              ),
-
-                      /*backgroundImage: NetworkImage(widget.avatarUrl), 
-                      child: widget.avatarUrl.isEmpty
-                          ? const Icon(Icons.person, color: Colors.white) // 如果 asset 載不到，至少會顯示這個 icon
-                          : null,*/
+                            : null,
+                      )
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -608,7 +626,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                     border: Border.all(color: Colors.black, width: 2),
                     borderRadius: BorderRadius.circular(16),
                     image: const DecorationImage(
-                      image: AssetImage('assets/profile_setup_background.png'),
+                      image: AssetImage('assets/chat_background.jpg'),
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -666,6 +684,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
                             final bool showAvatar = !isMe && !sameAsNext;
 
+                            final senderId = msg['sender'] as String;
+                            final senderPhoto = _displayPhotos[senderId] ?? '';
+
                             return Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -678,8 +699,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                         padding: const EdgeInsets.only(right: 6),
                                         child: CircleAvatar(
                                           radius: 18,
-                                          backgroundImage: NetworkImage(widget.avatarUrl),
+                                          backgroundImage: senderPhoto.isNotEmpty ? NetworkImage(senderPhoto) : null,
                                           backgroundColor: Colors.grey.shade300,
+                                          child: senderPhoto.isEmpty
+                                              ? const Icon(Icons.person, color: Colors.white, size: 18)
+                                              : null,
                                         ),
                                       ),
                                     )

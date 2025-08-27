@@ -25,6 +25,9 @@ class _ActivityPageState extends State<ActivityPage> {
   Map<String, dynamic>? activity; // 存放要顯示的活動
   String? activityId;
 
+  bool _hasShownDialog = false; // 加入為 State 成員變數，防止重複彈出
+  bool _hasLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +42,9 @@ class _ActivityPageState extends State<ActivityPage> {
         .collection('activities')
         .get();
 
+    Map<String, dynamic>? firstUnseenActivity;
+    String? currentActivityId;
+
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final likedBy = List<String>.from(data['likedBy'] ?? []);
@@ -48,14 +54,19 @@ class _ActivityPageState extends State<ActivityPage> {
       if (!likedBy.contains(uid) &&
           !dislikedBy.contains(uid) &&
           !hasInGroupChat.contains(uid)) {
-        setState(() {
-          activity = data;
-          activityId = doc.id;
-        });
+        firstUnseenActivity = data;
+        currentActivityId = doc.id;
         break;
       }
     }
+
+    setState(() {
+      activity = firstUnseenActivity;
+      activityId = currentActivityId;
+      _hasLoaded = true;
+    });
   }
+
 
   Future<void> _showCreateActivityDialog() async {
     final _formKey = GlobalKey<FormState>();
@@ -67,7 +78,7 @@ class _ActivityPageState extends State<ActivityPage> {
     int? numberOfPeopleInGroup;
     XFile? pickedImage;
     String? imageUrl;
-
+    bool isSaving = false; // 防止多次點擊
     final ImagePicker picker = ImagePicker();
 
     await showDialog(
@@ -330,6 +341,10 @@ class _ActivityPageState extends State<ActivityPage> {
                     ElevatedButton(
                       child: const Text('儲存'),
                       onPressed: () async {
+                        // 🔒 防止多次點擊
+                        if (isSaving) return; 
+                        setState(() => isSaving = true);
+
                         if (_formKey.currentState?.validate() ?? false) {
                           _formKey.currentState?.save();
 
@@ -337,13 +352,13 @@ class _ActivityPageState extends State<ActivityPage> {
                           if (userCreate == null) {
                             Navigator.of(context).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('您尚未登入')));
+                              const SnackBar(content: Text('您尚未登入'))
+                            );
+                            setState(() => isSaving = false); // ✅ 還原按鈕
                             return;
                           }
 
-                          // 檢查是否超過每日限制
-                          final todayKey =
-                              DateFormat("yyyyMMdd").format(DateTime.now());
+                          final todayKey = DateFormat("yyyyMMdd").format(DateTime.now());
                           final userActivityRef = FirebaseFirestore.instance
                               .collection("users")
                               .doc(userCreate)
@@ -351,12 +366,13 @@ class _ActivityPageState extends State<ActivityPage> {
                               .doc(todayKey);
 
                           final snapshot = await userActivityRef.get();
-                          final createdList =
-                              (snapshot.data()?["activityIds"] as List?) ?? [];
+                          final createdList = (snapshot.data()?["activityIds"] as List?) ?? [];
 
                           if (createdList.length >= 3) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("每天最多創建 3 個活動")));
+                              const SnackBar(content: Text("每天最多創建 3 個活動"))
+                            );
+                            setState(() => isSaving = false); // ✅ 還原按鈕
                             return;
                           }
 
@@ -369,10 +385,7 @@ class _ActivityPageState extends State<ActivityPage> {
                             imageUrl = await ref.getDownloadURL();
                           }
 
-                          final docRef = FirebaseFirestore.instance
-                              .collection('activities')
-                              .doc();
-
+                          final docRef = FirebaseFirestore.instance.collection('activities').doc();
                           await docRef.set({
                             "createdAt": FieldValue.serverTimestamp(),
                             "date": dateTime,
@@ -390,7 +403,6 @@ class _ActivityPageState extends State<ActivityPage> {
                             "description": description ?? '',
                           });
 
-                          // 記錄到使用者 activity 清單
                           await userActivityRef.set({
                             "activityIds": FieldValue.arrayUnion([docRef.id])
                           }, SetOptions(merge: true));
@@ -398,9 +410,13 @@ class _ActivityPageState extends State<ActivityPage> {
                           Navigator.of(context).pop();
 
                           ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('活動已創建')));
+                            const SnackBar(content: Text('活動已創建'))
+                          );
                           _loadActivity();
                         }
+
+                        // ✅ 動作完成後恢復按鈕
+                        setState(() => isSaving = false);
                       },
                     )
                   ],
@@ -426,10 +442,10 @@ class _ActivityPageState extends State<ActivityPage> {
     });
 
     // 更新完之後再載入下一個活動
-    setState(() {
+    /*setState(() {
       activity = null;
       activityId = null;
-    });
+    });*/
     _loadActivity();
   }
   
@@ -464,6 +480,21 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
+  Future<Map<String, String>> fetchDisplayPhotos(List<String> userIds) async {
+    Map<String, String> displayPhotos = {};
+
+    for (String userId in userIds) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && data['photoUrl'] != null) {
+          displayPhotos[userId] = data['photoUrl'];
+        }
+      }
+    }
+
+    return displayPhotos;
+  }
 
   Future<void> _likeActivity() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -481,13 +512,24 @@ class _ActivityPageState extends State<ActivityPage> {
         if (groupId != null) {
           
           // 把使用者加入 chats/groupId/members 陣列
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+          final photoUrl = userDoc.data()?['photoUrl'] ?? '';
           final groupChatRef = FirebaseFirestore.instance.collection('chats').doc(groupId);
           await groupChatRef.update({
-            'members': FieldValue.arrayUnion([uid])
+            'members': FieldValue.arrayUnion([uid]),
+            'displayPhotos.$uid': photoUrl,
+          });
+
+          // 把使用者加入活動的 likedBy 陣列
+          await FirebaseFirestore.instance
+              .collection('activities')
+              .doc(activityId)
+              .update({
+            "likedBy": FieldValue.arrayUnion([uid]),
           });
 
           // 判斷自己是不是最後一個可加入群組的人
-          if (likedBy.length + 1 == numberOfPeopleInGroup) {
+          if (likedBy.length + 1 >= numberOfPeopleInGroup) {
             // 刪除該活動文件
             await FirebaseFirestore.instance
                 .collection('activities')
@@ -520,6 +562,7 @@ class _ActivityPageState extends State<ActivityPage> {
             await newGroupRef.set({
               'createdAt': FieldValue.serverTimestamp(),
               'members': [...likedBy, uid],
+              'displayPhotos':  await fetchDisplayPhotos([...likedBy, uid]),
               'type': 'activity',
               'groupName': activity!['title'] ?? '活動群組',
               'groupPhotoUrl': activity!['imageUrl'] ?? '',
@@ -534,7 +577,7 @@ class _ActivityPageState extends State<ActivityPage> {
               'groupId': newGroupRef.id,
             });
             
-            if (likedBy.length + 1 == numberOfPeopleInGroup) {
+            if (likedBy.length + 1 >= numberOfPeopleInGroup) {
               // 刪除該活動文件
               await FirebaseFirestore.instance
                   .collection('activities')
@@ -573,6 +616,7 @@ class _ActivityPageState extends State<ActivityPage> {
         await newGroupRef.set({
           'createdAt': FieldValue.serverTimestamp(),
           'members': [...likedBy, uid], // 將 likedBy 全部成員搬移
+          'displayPhotos':  await fetchDisplayPhotos([...likedBy, uid]),
           'type': 'activity',
           'groupName': activity!['title'] ?? '活動群組',
           'groupPhotoUrl': activity!['imageUrl'] ?? '',
@@ -603,10 +647,10 @@ class _ActivityPageState extends State<ActivityPage> {
     }
 
     //做完事了
-    setState(() {
+    /*setState(() {
       activity = null;
       activityId = null;
-    });
+    });*/
     _loadActivity();
     return;
   }
@@ -622,22 +666,19 @@ class _ActivityPageState extends State<ActivityPage> {
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     
-    if (activity == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
 
-    final String imageUrl = activity!['imageUrl'] ?? '';
-    final String title = activity!['title'] ?? '';
-    final timestamp = activity!['date'];
-    final String source = activity!['source'] ?? '';
-    final String url = activity!['url'] ?? '';
-    final String description = activity!['description'] ?? '';
-    final String location = activity!['location'] ?? '';
+
+    final String imageUrl = activity?['imageUrl'] ?? '';
+    final String title = activity?['title'] ?? '目前沒有最新活動';
+    final timestamp = activity?['date'];
+    final String source = activity?['source'] ?? '';
+    final String url = activity?['url'] ?? '';
+    final String description = activity?['description'] ?? '';
+    final String location = activity?['location'] ?? '';
 
     // 判斷 timestamp 是否為 Timestamp 並轉成 DateTime
     DateTime? dateTime;
@@ -725,22 +766,23 @@ class _ActivityPageState extends State<ActivityPage> {
                 top: fy(110),
                 width: fw(290),
                 height: fh(340),
-                child: imageUrl == null || imageUrl.isEmpty
-                    ? Image.asset(
-                        'assets/activity_default.png',
-                        fit: BoxFit.contain,
-                      )
-                    : Image.network(
-                        imageUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          // 網路圖片抓取失敗時，顯示預設圖片
-                          return Image.asset(
-                            'assets/activity_default.png',
+                child: title=='目前沒有最新活動'? Image.asset('assets/no_activity.jpg',fit: BoxFit.contain,) 
+                    : imageUrl == null || imageUrl.isEmpty
+                        ? Image.asset(
+                            'assets/activity_default.jpg',
                             fit: BoxFit.contain,
-                          );
-                        },
-                      ),
+                          )
+                        : Image.network(
+                            imageUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              // 網路圖片抓取失敗時，顯示預設圖片
+                              return Image.asset(
+                                'assets/activity_default.jpg',
+                                fit: BoxFit.contain,
+                              );
+                            },
+                          ),
               ),
 
               Positioned(
