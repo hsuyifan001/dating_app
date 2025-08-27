@@ -239,7 +239,9 @@ class _ChatPageState extends State<ChatPage> {
                       String myPhotoUrl = '';
                       if (type == 'match') {
                         final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
-                        myPhotoUrl = displayPhotos[uid] ?? '';
+                        myPhotoUrl = displayPhotos.entries
+                          .firstWhere((entry) => entry.key != uid, orElse: () => const MapEntry('', ''))
+                          .value;
                       }
                       if(type == 'activity') {
                         final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
