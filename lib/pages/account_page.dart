@@ -317,7 +317,7 @@ class _AccountPageState extends State<AccountPage> {
   // 計算一列最多三個標籤，三個標籤加兩個間距的寬度
   final double maxWrapWidth = tagWidth * 3 + tagSpacing * 2;
 
-  var myGroup;
+  final AutoSizeGroup myGroup = AutoSizeGroup();
   return SingleChildScrollView(
     padding: EdgeInsets.all(w(14)),
     child: Column(
