@@ -1,3 +1,4 @@
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:dating_app/profile_setup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -400,18 +401,35 @@ class _AccountPageState extends State<AccountPage> {
             children: [
               SizedBox(
                 height: h(30), // 你可以根據需要調整大小
-                child: FittedBox(
-                  alignment: Alignment.centerLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    '學校：$school${school.isNotEmpty ? '' : '尚未填寫'}',
-                    style: const TextStyle(
-                      fontFamily: 'Kiwi Maru',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 30, // 這會是最大字級，實際字號會依盒子大小縮放
-                      color: Colors.black,
-                    ),
+                 child: AutoSizeText(
+                   '學校：$school${school.isNotEmpty ? '' : '尚未填寫'}',
+                   maxLines: 1,
+                   style: const TextStyle(
+                     fontFamily: 'Kiwi Maru',
+                     fontWeight: FontWeight.w500,
+                     fontSize: 30, // 最大字級
+                     color: Colors.black,
+                   ),
+                   minFontSize: 16, // 最小字級，避免過小
+                   overflow: TextOverflow.ellipsis,
+                 ),
+              ),
+
+              SizedBox(height: h(8)),
+
+              SizedBox(
+                height: h(30),
+                child: AutoSizeText(
+                  '性別：$gender${gender.isNotEmpty ? '' : '尚未填寫'}',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontFamily: 'Kiwi Maru',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 30,
+                    color: Colors.black,
                   ),
+                  minFontSize: 16,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
 
@@ -419,37 +437,17 @@ class _AccountPageState extends State<AccountPage> {
 
               SizedBox(
                 height: h(30),
-                child: FittedBox(
-                  alignment: Alignment.centerLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    '性別：$gender${gender.isNotEmpty ? '' : '尚未填寫'}',
-                    style: const TextStyle(
-                      fontFamily: 'Kiwi Maru',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 30,
-                      color: Colors.black,
-                    ),
+                child: AutoSizeText(
+                  '自我介紹:',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontFamily: 'Kiwi Maru',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 30,
+                    color: Colors.black,
                   ),
-                ),
-              ),
-
-              SizedBox(height: h(8)),
-
-              SizedBox(
-                height: h(30),
-                child: FittedBox(
-                  alignment: Alignment.centerLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    '自我介紹:',
-                    style: const TextStyle(
-                      fontFamily: 'Kiwi Maru',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 30,
-                      color: Colors.black,
-                    ),
-                  ),
+                  minFontSize: 16,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
 
@@ -457,17 +455,16 @@ class _AccountPageState extends State<AccountPage> {
 
               SizedBox(
                 height: h(30), // 自我介紹內容可以用較高高度因字數較多
-                child: FittedBox(
-                  alignment: Alignment.topLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    '$selfIntro${selfIntro.isNotEmpty ? '' : '尚未填寫'}',
-                    style: const TextStyle(
+                child: AutoSizeText(
+                  '$selfIntro${selfIntro.isNotEmpty ? '' : '尚未填寫'}',
+                  maxLines: 1,
+                  style: const TextStyle(
                       fontSize: 20,
                       color: Colors.black87,
                       fontWeight: FontWeight.w500,
                     ),
-                  ),
+                  minFontSize: 16,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
