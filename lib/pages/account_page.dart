@@ -317,6 +317,7 @@ class _AccountPageState extends State<AccountPage> {
   // 計算一列最多三個標籤，三個標籤加兩個間距的寬度
   final double maxWrapWidth = tagWidth * 3 + tagSpacing * 2;
 
+  var myGroup;
   return SingleChildScrollView(
     padding: EdgeInsets.all(w(14)),
     child: Column(
@@ -413,6 +414,7 @@ class _AccountPageState extends State<AccountPage> {
                    ),
                    minFontSize: 16, // 最小字級，避免過小
                    overflow: TextOverflow.ellipsis,
+                   group: myGroup, // 👈 放進同一個 group
                  ),
               ),
 
@@ -432,6 +434,7 @@ class _AccountPageState extends State<AccountPage> {
                   ),
                   minFontSize: 16,
                   overflow: TextOverflow.ellipsis,
+                  group: myGroup, // 👈 放進同一個 group
                 ),
               ),
 
@@ -451,6 +454,7 @@ class _AccountPageState extends State<AccountPage> {
                   ),
                   minFontSize: 16,
                   overflow: TextOverflow.ellipsis,
+                  group: myGroup, // 👈 放進同一個 group
                 ),
               ),
 
