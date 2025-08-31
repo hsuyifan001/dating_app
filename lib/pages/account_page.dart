@@ -401,6 +401,7 @@ class _AccountPageState extends State<AccountPage> {
             children: [
               SizedBox(
                 height: h(30), // 你可以根據需要調整大小
+                width: w(300),
                  child: AutoSizeText(
                    '學校：$school${school.isNotEmpty ? '' : '尚未填寫'}',
                    maxLines: 1,
@@ -419,6 +420,7 @@ class _AccountPageState extends State<AccountPage> {
 
               SizedBox(
                 height: h(30),
+                width: w(300),
                 child: AutoSizeText(
                   '性別：$gender${gender.isNotEmpty ? '' : '尚未填寫'}',
                   maxLines: 1,
@@ -437,6 +439,7 @@ class _AccountPageState extends State<AccountPage> {
 
               SizedBox(
                 height: h(30),
+                width: w(300),
                 child: AutoSizeText(
                   '自我介紹:',
                   maxLines: 1,
@@ -455,6 +458,7 @@ class _AccountPageState extends State<AccountPage> {
 
               SizedBox(
                 height: h(30), // 自我介紹內容可以用較高高度因字數較多
+                width: w(300),
                 child: AutoSizeText(
                   '$selfIntro${selfIntro.isNotEmpty ? '' : '尚未填寫'}',
                   maxLines: 1,
