@@ -8,9 +8,15 @@ import 'profile_setup_page.dart'; // 等下會建立
 import 'home_page.dart';
 import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/services.dart';
 
 void main() async { // 記得awit要配上async
   WidgetsFlutterBinding.ensureInitialized();
+  // 加這一行，鎖定直屏
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await setupFcm();
   runApp(const MyApp()); //MyApp = 你的APP名稱
