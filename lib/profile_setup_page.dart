@@ -332,9 +332,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
     String school = '';
     final email = user.email ?? '';
     if (email.endsWith('@g.nycu.edu.tw') || email.endsWith('@nycu.edu.tw')) {
-      school = 'nycu';
+      school = 'NYCU';
     } else if (email.endsWith('@gapp.nthu.edu.tw') || email.endsWith('@nthu.edu.tw')) {
-      school = 'nthu';
+      school = 'NTHU';
     } else {
       school = '其他';
     }
@@ -601,9 +601,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
                   ],
                 ),
                 const SizedBox(height: 48),
-                _buildSchoolChoice('國立陽明交通大學', 'nycu'),
+                _buildSchoolChoice('國立陽明交通大學', 'NYCU'),
                 const SizedBox(height: 20),
-                _buildSchoolChoice('國立清華大學', 'nthu'),
+                _buildSchoolChoice('國立清華大學', 'NTHU'),
                 const SizedBox(height: 40),
               
               ],

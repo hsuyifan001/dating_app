@@ -171,7 +171,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
     if (googleUser == null) return; // 使用者取消登入
 
     final String email = googleUser.email;
-
+    /*
     // 登入前先檢查信箱格式
     if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw')) {
       await googleSignIn.signOut();
@@ -182,7 +182,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
       }
       return;
     }
-
+    */
     // 通過信箱驗證後繼續取得 token 並登入 Firebase
     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
