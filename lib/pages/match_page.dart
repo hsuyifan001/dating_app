@@ -4,7 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart'; // for DateFormat
 import 'dart:async';
 import 'dart:math';
-import 'package:cloud_functions/cloud_functions.dart';
+// import 'package:cloud_functions/cloud_functions.dart';
+import 'package:dating_app/utils/notification_util.dart';
 
 class MatchPage extends StatefulWidget {
   const MatchPage({super.key});
@@ -576,46 +577,46 @@ class _MatchPageState extends State<MatchPage> {
     );
   }
 
-  Future<void> sendPushNotification({
-    required String targetUserId,
-    required String title,
-    required String body,
-    Map<String, String>? data,
-  }) async {
-    try {
-      // 1. 取得目標用戶的 FCM 權杖
-      final firestore = FirebaseFirestore.instance;
-      final targetUserDoc = await firestore.collection('users').doc(targetUserId).get();
-      final fcmToken = targetUserDoc.data()?['fcmToken'] as String?;
+  // Future<void> sendPushNotification({
+  //   required String targetUserId,
+  //   required String title,
+  //   required String body,
+  //   Map<String, String>? data,
+  // }) async {
+  //   try {
+  //     // 1. 取得目標用戶的 FCM 權杖
+  //     final firestore = FirebaseFirestore.instance;
+  //     final targetUserDoc = await firestore.collection('users').doc(targetUserId).get();
+  //     final fcmToken = targetUserDoc.data()?['fcmToken'] as String?;
 
-      if (fcmToken == null || fcmToken.isEmpty) {
-        print('目標用戶 ($targetUserId) 無有效的 FCM 權杖');
-        return;
-      }
+  //     if (fcmToken == null || fcmToken.isEmpty) {
+  //       print('目標用戶 ($targetUserId) 無有效的 FCM 權杖');
+  //       return;
+  //     }
 
-      // 2. 呼叫 Cloud Functions 的 sendNotification
-      final callable = FirebaseFunctions.instance.httpsCallable('sendNotification');
-      await callable.call({
-        'fcmToken': fcmToken,
-        'title': title,
-        'body': body,
-        'data': data ?? {},
-      });
+  //     // 2. 呼叫 Cloud Functions 的 sendNotification
+  //     final callable = FirebaseFunctions.instance.httpsCallable('sendNotification');
+  //     await callable.call({
+  //       'fcmToken': fcmToken,
+  //       'title': title,
+  //       'body': body,
+  //       'data': data ?? {},
+  //     });
 
-      // 3. 在目標用戶的notices中存放通知
-      await firestore.collection('users').doc(targetUserId).collection('notices').add({
-        'title': title,
-        'body': body,
-        'data': data ?? {},
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
+  //     // 3. 在目標用戶的notices中存放通知
+  //     await firestore.collection('users').doc(targetUserId).collection('notices').add({
+  //       'title': title,
+  //       'body': body,
+  //       'data': data ?? {},
+  //       'timestamp': FieldValue.serverTimestamp(),
+  //       'isRead': false,
+  //     });
 
-      print('推播通知已發送給用戶 $targetUserId: $title - $body');
-    } catch (e) {
-      print('發送推播通知失敗: $e');
-    }
-  }
+  //     print('推播通知已發送給用戶 $targetUserId: $title - $body');
+  //   } catch (e) {
+  //     print('發送推播通知失敗: $e');
+  //   }
+  // }
 
   Future<void> createChatRoom(String userA, String userB) async {
     final chatId = _getMatchRoomId(userA, userB); // 兩個 uid 排序後組成唯一 id
