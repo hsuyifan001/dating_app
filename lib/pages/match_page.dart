@@ -602,6 +602,15 @@ class _MatchPageState extends State<MatchPage> {
         'data': data ?? {},
       });
 
+      // 3. 在目標用戶的notices中存放通知
+      await firestore.collection('users').doc(targetUserId).collection('notices').add({
+        'title': title,
+        'body': body,
+        'data': data ?? {},
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
       print('推播通知已發送給用戶 $targetUserId: $title - $body');
     } catch (e) {
       print('發送推播通知失敗: $e');
