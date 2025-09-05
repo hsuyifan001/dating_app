@@ -336,9 +336,9 @@ class _MatchPageState extends State<MatchPage> {
         print('[Error Step 6] 把不符合的人也加入失敗: $e');
         print(st);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('載入推薦用戶失敗，請稍後再試')),
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   const SnackBar(content: Text('載入推薦用戶失敗，請稍後再試')),
+          // );
         }
       }
     }

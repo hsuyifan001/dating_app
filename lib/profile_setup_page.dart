@@ -925,14 +925,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
         _isUploadingPhoto = false;
       });
   
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('照片上傳成功')),
-      );
     } catch (e) {
       setState(() => _isUploadingPhoto = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('照片上傳失敗：$e')),
-      );
     }
   }
 

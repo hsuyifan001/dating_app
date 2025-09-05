@@ -533,9 +533,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         'lastMessageTime': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('圖片上傳失敗: $e')),
-      );
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text('圖片上傳失敗: $e')),
+      // );
       _removeTempImageMessage(tempId);
     }
   }
