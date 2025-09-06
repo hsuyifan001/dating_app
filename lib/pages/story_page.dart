@@ -760,16 +760,17 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
                       iconSize: 43, // 確保圖片大小一致
                       icon: Image.asset('assets/star.png'),
                       onPressed: () {
-                        _openAddStoryDialog();
+                        //等待實作訊息通知頁
+
                       },
                     ),
                   ),
                   Expanded(
                     flex: 1,
                     child: IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.black, size: 30),
+                      icon: const Icon(Icons.add_box_outlined, color: Colors.black, size: 60),
                       onPressed: () {
-                        // TODO: 搜尋或更多功能
+                        _openAddStoryDialog();
                       },
                     ),
                   ),

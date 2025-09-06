@@ -14,6 +14,38 @@
       },
       "oauth_client": [
         {
+          "client_id": "137173225324-4lc3fkkmtg1u32k2ulbv7s9iejiiulv9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dating_app",
+            "certificate_hash": "5adc5fec9df94a36a69c834c70aaf9c60c71c49b"
+          }
+        },
+        {
+          "client_id": "137173225324-asndcv3m9ntbvjm1vaqfeitget0e93fk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dating_app",
+            "certificate_hash": "90f50d218aa8da8cc9c77b1b416ff042ec06cd48"
+          }
+        },
+        {
+          "client_id": "137173225324-bu37qsvjm0emgrkhf7qn1ao5hbu2vqt8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dating_app",
+            "certificate_hash": "53ac39462f6e20794e1fc01f3c13a72270368b1d"
+          }
+        },
+        {
+          "client_id": "137173225324-lpr642fd09r1fvah4e8dbcbipnsma27l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dating_app",
+            "certificate_hash": "227f0bd7a67439dc531d77de565f05957cc43fde"
+          }
+        },
+        {
           "client_id": "137173225324-m7i88ka60qe7l1jdllntg7svd84kr2eu.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -29,6 +61,42 @@
             "certificate_hash": "7b83b4bfa46419ef54c7408db316c083244a0e24"
           }
         },
+        {
+          "client_id": "137173225324-d8ipo8t3f6f8n43b0h4mg5u01ert12r1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6dcpS-DmhvDt0xWwyFMyUUnMNk3vifiQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "137173225324-d8ipo8t3f6f8n43b0h4mg5u01ert12r1.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "137173225324-d1ejc2c39771a82ep1t1bnnjmcnvvkft.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.datingApp"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:137173225324:android:e0a42e08751ddf749e2d49",
+        "android_client_info": {
+          "package_name": "com.yandqingjiao.datingapp"
+        }
+      },
+      "oauth_client": [
         {
           "client_id": "137173225324-d8ipo8t3f6f8n43b0h4mg5u01ert12r1.apps.googleusercontent.com",
           "client_type": 3

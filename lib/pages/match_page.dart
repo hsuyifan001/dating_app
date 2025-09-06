@@ -17,6 +17,7 @@ class _MatchPageState extends State<MatchPage> {
   final user = FirebaseAuth.instance.currentUser;
   List<DocumentSnapshot> users = [];
   bool isLoading = true;
+  bool isProcessing = false; // 防止連續點擊的變數
   // bool reachDailyLimit = false;
   int currentMatchIdx = 0;
 
@@ -408,6 +409,11 @@ class _MatchPageState extends State<MatchPage> {
   }
   
   Future<void> _handleLike(String targetUserId) async {
+    if (isProcessing) return; // 如果正在處理，直接返回
+    setState(() {
+      isProcessing = true; // 設定為正在處理
+    });
+    
     final firestore = FirebaseFirestore.instance;
     final currentUserId = user!.uid;
 
@@ -502,8 +508,14 @@ class _MatchPageState extends State<MatchPage> {
 
       // 彈窗關閉後才換下一個人
       _showNextUser();
+      setState(() {
+        isProcessing = false; // 處理完成，允許下一次點擊
+      });
     } else {
       _showNextUser();
+      setState(() {
+        isProcessing = false; // 處理完成，允許下一次點擊
+      });
     }
   }
 
@@ -525,6 +537,12 @@ class _MatchPageState extends State<MatchPage> {
     //   }
     // }
 
+
+    if (isProcessing) return; // 如果正在處理，直接返回
+    setState(() {
+      isProcessing = true; // 設定為正在處理
+    });
+
     final firestore = FirebaseFirestore.instance;
     final currentUserId = user!.uid;
 
@@ -540,6 +558,9 @@ class _MatchPageState extends State<MatchPage> {
 
     // 你可以在這裡實作記錄不喜歡的邏輯，例如加入一個 dislikes collection
     _showNextUser();
+    setState(() {
+        isProcessing = false; // 處理完成，允許下一次點擊
+      });
   }
 
   // 顯示配對成功
@@ -903,7 +924,7 @@ class _MatchPageState extends State<MatchPage> {
                     ),
                     child: Center(
                       child: Image.asset(
-                        'assets/heart.png',
+                        'assets/good.png',
                         width: bgWidth * (124.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
                         height: bgWidth * (124.0 / figmaWidth) * 0.7,
                         fit: BoxFit.contain,
