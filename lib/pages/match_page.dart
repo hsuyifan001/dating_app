@@ -658,6 +658,7 @@ class _MatchPageState extends State<MatchPage> {
         'createdAt': FieldValue.serverTimestamp(),
         'lastMessage': '配對成功',
         'lastMessageTime': FieldValue.serverTimestamp(),
+        'groupName': '',
 
         // 對每個成員儲存對方的名字
         'displayNames': {

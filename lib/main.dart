@@ -23,42 +23,30 @@ void main() async { // 記得awit要配上async
 }
 
 Future<void> setupFcm() async {
-  final fcm = FirebaseMessaging.instance;
-  // 請求通知權限（iOS 需要）
-  await fcm.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-  // 獲取 FCM 權杖
-  final fcmToken = await fcm.getToken();
-  print('FCM 權杖: $fcmToken');
-
-  // 監聽權杖更新
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-    print('FCM 權杖更新: $newToken');
-  });
-
-  // 監聽前台通知
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    print('收到前台通知: ${message.notification?.title} - ${message.notification?.body}');
-    print('通知資料: ${message.data}');
-    // 可選：顯示 UI 提示（需要 BuildContext，見下方選項 2）
-  });
-
-  // 監聽背景通知點擊
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    print('點擊背景通知: ${message.notification?.title}');
-    print('通知資料: ${message.data}');
-    // 可選：導航到特定頁面，例如聊天室
-  });
-
-  // 檢查從終止狀態啟動的通知
-  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-  if (initialMessage != null) {
-    print('從終止狀態啟動: ${initialMessage.notification?.title}');
-    print('通知資料: ${initialMessage.data}');
-    // 可選：導航到特定頁面
+  try {
+    final fcm = FirebaseMessaging.instance;
+    await fcm.requestPermission(alert: true, badge: true, sound: true);
+    final fcmToken = await fcm.getToken();
+    print('FCM 權杖: $fcmToken');
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null && fcmToken != null) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .set({'fcmToken': fcmToken}, SetOptions(merge: true));
+      print('FCM 權杖已儲存至 Firestore: $userId');
+    }
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+      if (userId != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .set({'fcmToken': newToken}, SetOptions(merge: true));
+        print('FCM 權杖更新: $newToken');
+      }
+    });
+  } catch (e) {
+    print('設置 FCM 失敗: $e');
   }
 }
 
