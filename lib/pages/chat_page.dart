@@ -405,44 +405,61 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     FocusScope.of(context).unfocus();
     if (text.isEmpty) return;
 
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatRoomId)
-        .collection('messages')
-        .add({
-      'sender': currentUser!.uid,
-      'type': 'text',
-      'text': text,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    try {
+      // 發送訊息
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatRoomId)
+          .collection('messages')
+          .add({
+        'sender': currentUser!.uid,
+        'type': 'text',
+        'text': text,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
 
-    await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatRoomId)
-        .update({
-      'lastMessage': text,
-      'lastMessageTime': FieldValue.serverTimestamp(),
-    });
+      // 更新聊天室
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatRoomId)
+          .update({
+        'lastMessage': text,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+      });
 
-    final chatDoc = await FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId).get();
-    final members = List<String>.from(chatDoc['members'] ?? []);
-    final type = chatDoc['type'] ?? '';
-    final groupName = chatDoc['groupName'] ?? '';
-
-    for (final targetUserId in members) {
-      if (targetUserId != currentUser!.uid) {
-        await sendPushNotification(
-          targetUserId: targetUserId,
-          title: type == 'activity'
-              ? groupName
-              : (chatDoc['displayNames'][targetUserId] ?? "某人"),
-          body: text,
-          data: {
-            'type': 'chat',
-            'chatRoomId': widget.chatRoomId,
-          },
-        );
+      // 獲取聊天室資料
+      final chatDoc = await FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId).get();
+      if (!chatDoc.exists) {
+        print('聊天室 ${widget.chatRoomId} 不存在');
+        return;
       }
+      final members = List<String>.from(chatDoc['members'] ?? []);
+      final type = chatDoc['type'] ?? '';
+      final groupName = chatDoc['groupName'] ?? '群組聊天'; // 預設值
+
+      for (final targetUserId in members) {
+        if (targetUserId != currentUser!.uid) {
+          final title = type == 'activity'
+              ? groupName
+              : (chatDoc['displayNames']?[targetUserId] ?? '某人');
+          await sendPushNotification(
+            targetUserId: targetUserId,
+            title: title.isEmpty ? '群組聊天' : title, // 確保標題非空
+            body: text,
+            data: {
+              'type': 'chat',
+              'chatRoomId': widget.chatRoomId,
+            },
+          );
+        }
+      }
+    } catch (e) {
+      print('發送訊息或通知失敗: $e');
+      // if (context.mounted) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(content: Text('發送訊息失敗：$e')),
+      //   );
+      // }
     }
   }
 
