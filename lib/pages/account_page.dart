@@ -1,10 +1,15 @@
 import 'package:auto_size_text/auto_size_text.dart';
-import 'package:dating_app/profile_setup_page.dart';
+import 'package:dropdown_search/dropdown_search.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+// import 'package:dating_app/profile_setup_page.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import '../main.dart';
+import 'dart:io';
+import 'package:dating_app/constants/data_constants.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -30,17 +35,14 @@ class _AccountPageState extends State<AccountPage> {
   String selfIntro = '';
   bool isLoading = true;
 
-  final List<String> mbtiList = [
-    'ISTJ', 'ISFJ', 'INFJ', 'INTJ',
-    'ISTP', 'ISFP', 'INFP', 'INTP',
-    'ESTP', 'ESFP', 'ENFP', 'ENTP',
-    'ESTJ', 'ESFJ', 'ENFJ', 'ENTJ',
-  ];
-
-  final List<String> zodiacList = [
-    '牡羊座', '金牛座', '雙子座', '巨蟹座', '獅子座', '處女座',
-    '天秤座', '天蠍座', '射手座', '摩羯座', '水瓶座', '雙魚座',
-  ];
+  // 新增的變數，從 Firebase 讀取
+  Set<String> habits = {};
+  String? educationLevels;
+  String? department;
+  bool? matchSameDepartment;
+  Set<String> matchGender = {};
+  Set<String> matchSchools = {};
+  String height = '';
 
   @override
   void initState() {
@@ -55,6 +57,11 @@ class _AccountPageState extends State<AccountPage> {
     final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     if (doc.exists) {
       final data = doc.data()!;
+
+      // 添加 print 來檢查 data 的內容
+      print('Firebase data keys: ${data.keys.toList()}');  // 印出所有欄位名稱
+      print('matchSameDepartment: ${data['matchSameDepartment']}');
+
       nameController.text = data['name'] ?? '';
       birthdayController.text = data['birthday'] ?? '';
       bioController.text = data['bio'] ?? '';
@@ -68,6 +75,15 @@ class _AccountPageState extends State<AccountPage> {
       zodiac = data['zodiac'];
       school = data['school'] ?? '';
       selfIntro = data['selfIntro'] ?? '';
+
+      // 新增變數的讀取
+      habits = Set<String>.from(data['habits'] ?? []);
+      educationLevels = data['educationLevels'];
+      department = data['department'];
+      matchSameDepartment = data['matchSameDepartment'];
+      matchGender = Set<String>.from(data['matchGender'] ?? []);
+      matchSchools = Set<String>.from(data['matchSchools'] ?? []);
+      height = data['height'] ?? '';
     }
 
     setState(() {
@@ -541,10 +557,54 @@ class _AccountPageState extends State<AccountPage> {
               width: w(156),
               height: h(55),
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
+                onPressed: () async {
+                  await Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ProfileSetupPage()),
+                    MaterialPageRoute(
+                      builder: (_) => SimpleProfileEditPage(
+                        name: nameController.text,
+                        birthday: birthdayController.text,
+                        mbti: mbti,
+                        zodiac: zodiac,
+                        selfIntro: selfIntro,
+                        tags: tags,
+                        selectedHabits: habits,  // 從 Firebase 讀取
+                        selectedMBTI: mbti,
+                        selectedZodiac: zodiac,
+                        selectededucationLevels: educationLevels,
+                        selectedDepartment: department,
+                        matchSameDepartment: matchSameDepartment,
+                        gender: gender,
+                        matchGender: matchGender,
+                        matchSchools: matchSchools,
+                        height: height,
+                        photoUrl: photoURL,
+                        onSave: (data) async {
+                          // 寫回 Firebase
+                          await FirebaseFirestore.instance.collection('users').doc(user!.uid).update(data);
+                          setState(() {
+                            // 更新本地變數
+                            nameController.text = data['name'] ?? '';
+                            birthdayController.text = data['birthday'] ?? '';
+                            selfIntro = data['selfIntro'] ?? '';
+                            habits = Set<String>.from(data['habits'] ?? []);
+                            mbti = data['mbti'];
+                            zodiac = data['zodiac'];
+                            educationLevels = data['educationLevels'];
+                            department = data['department'];
+                            matchSameDepartment = data['matchSameDepartment'];
+                            gender = data['gender'] ?? '';
+                            matchGender = Set<String>.from(data['matchGender'] ?? []);
+                            matchSchools = Set<String>.from(data['matchSchools'] ?? []);
+                            height = data['height'] ?? '';
+                            photoURL = data['photoUrl'];
+                            tags = List<String>.from(data['tags'] ?? []);
+                            mbti = data['mbti'];  // 更新 mbti
+                            zodiac = data['zodiac'];  // 更新 zodiac
+                          });
+                        },
+                      ),
+                    ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -660,6 +720,541 @@ class _AccountPageState extends State<AccountPage> {
         ),
       )
     );
+  }
+}
+
+class SimpleProfileEditPage extends StatefulWidget {
+  final String name;
+  final String birthday;
+  final String? mbti;
+  final String? zodiac;
+  final String selfIntro;
+  final List<String> tags;
+  final Set<String> selectedHabits;
+  final String? selectedMBTI;
+  final String? selectedZodiac;
+  final String? selectededucationLevels;
+  final String? selectedDepartment;
+  final bool? matchSameDepartment;
+  final String gender;
+  final Set<String> matchGender;
+  final Set<String> matchSchools;
+  final String height;
+  final String? photoUrl;
+  final ValueChanged<Map<String, dynamic>>? onSave;
+
+  const SimpleProfileEditPage({
+    super.key,
+    required this.name,
+    required this.birthday,
+    required this.mbti,
+    required this.zodiac,
+    required this.selfIntro,
+    required this.tags,
+    required this.selectedHabits,
+    required this.selectedMBTI,
+    required this.selectedZodiac,
+    required this.selectededucationLevels,
+    required this.selectedDepartment,
+    required this.matchSameDepartment,
+    required this.gender,
+    required this.matchGender,
+    required this.matchSchools,
+    required this.height,
+    required this.photoUrl,
+    this.onSave,
+  });
+
+  @override
+  State<SimpleProfileEditPage> createState() => _SimpleProfileEditPageState();
+}
+
+class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
+  late TextEditingController nameController;
+  late TextEditingController birthdayController;
+  late TextEditingController selfIntroController;
+  late TextEditingController heightController;
+  File? _selectedImage;
+  bool _isUploadingPhoto = false;
+  String? _photoUrl;
+
+  late Set<String> selectedHabits;
+  late String? selectedMBTI;
+  late String? selectedZodiac;
+  late String? selectededucationLevels;
+  late String? selectedDepartment;
+  late bool? matchSameDepartment;
+  late String gender;
+  late Set<String> matchGender;
+  late Set<String> matchSchools;
+  late List<String> tags;
+
+  final Map<String, bool> isInterestsExpanded = {
+    '運動': false,
+    '寵物': false,
+    '電影': false,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.name);
+    birthdayController = TextEditingController(text: widget.birthday);
+    selfIntroController = TextEditingController(text: widget.selfIntro);
+    heightController = TextEditingController(text: widget.height);
+    _photoUrl = widget.photoUrl;
+
+    selectedHabits = Set<String>.from(widget.selectedHabits);
+    selectedMBTI = widget.selectedMBTI;
+    selectedZodiac = widget.selectedZodiac;
+    selectededucationLevels = widget.selectededucationLevels;
+    selectedDepartment = widget.selectedDepartment;
+    matchSameDepartment = widget.matchSameDepartment;
+    gender = widget.gender;
+    matchGender = Set<String>.from(widget.matchGender);
+    matchSchools = Set<String>.from(widget.matchSchools);
+    tags = List<String>.from(widget.tags);
+
+    // 根據已選興趣初始化 isInterestsExpanded
+    for (final interest in isInterestsExpanded.keys) {
+      if (selectedHabits.contains(interest)) {
+        isInterestsExpanded[interest] = true;
+      }
+    }
+
+    print('matchSameDepartment: $matchSameDepartment');
+
+    print('test matchGender:');
+    for(final tmp in matchGender) {
+      print(tmp);
+    }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    birthdayController.dispose();
+    selfIntroController.dispose();
+    heightController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('編輯個人資料')),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque, // 讓空白處也能偵測點擊
+        onTap: () {
+          FocusScope.of(context).requestFocus(FocusNode()); // 明確移除焦點
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 大頭照
+              const Text('大頭照'),
+              const SizedBox(height: 8),
+              Center(  // 新增 Center 來橫向置中大頭照
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.blue, width: 2),
+                        ),
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundImage: _selectedImage != null
+                              ? FileImage(_selectedImage!)
+                              : (_photoUrl != null ? NetworkImage(_photoUrl!) : null),
+                          child: _selectedImage == null && _photoUrl == null
+                              ? const Icon(Icons.add_a_photo)
+                              : null,
+                        ),
+                      ),
+                      if (_isUploadingPhoto) const CircularProgressIndicator(),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 姓名
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: '姓名'),
+              ),
+              const SizedBox(height: 16),
+
+              // 性別
+              const Text('性別'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: ['男性', '女性'].map((g) => OutlinedButton(
+                  onPressed: () => setState(() => gender = g),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: gender == g ? Colors.blue.shade100 : null,
+                  ),
+                  child: Text(g),
+                )).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // 要配對的性別
+              const Text('要配對的性別'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: ['男性', '女性'].map((g) => OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      if (matchGender.contains(g)) {
+                        matchGender.remove(g);
+                      } else {
+                        matchGender.add(g);
+                      }
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: matchGender.contains(g) ? Colors.blue.shade100 : null,
+                  ),
+                  child: Text(g),
+                )).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // 要配對的學校
+              const Text('要配對的學校'),
+              const SizedBox(height: 8),
+              _buildSchoolChoice('國立陽明交通大學', 'NYCU'),
+              const SizedBox(height: 8),
+              _buildSchoolChoice('國立清華大學', 'NTHU'),
+              const SizedBox(height: 16),
+
+              // tags
+              const Text('個性化標籤'),
+              const SizedBox(height: 8),
+              GridView.count(
+                crossAxisCount: 4, // 每行4個
+                shrinkWrap: true,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 16,
+                childAspectRatio: 1.7,
+                physics: const NeverScrollableScrollPhysics(), // 禁止滾動，由外部控制
+                children: tagList.map((tag) {
+                  final isSelected = tags.contains(tag);
+                  return SizedBox(
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          if (isSelected) {
+                            tags.remove(tag);
+                          } else {
+                            tags.add(tag);
+                          }
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isSelected ? Colors.blue : Colors.white,
+                        foregroundColor: isSelected ? Colors.white : Colors.black,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: isSelected ? Colors.blue : Colors.grey),
+                        ),
+                      ),
+                      child: Text(tag, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // habits (興趣)
+              const Text('興趣'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tag in mainInterests) ...[
+                    _buildInterestChip(tag),
+                    if (isInterestsExpanded.containsKey(tag))  // 如果點了有子選項的，插入子項按鈕（較小，框起來）
+                      if (isInterestsExpanded[tag] == true)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color.fromARGB(51, 224, 201, 119), // 底色
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: interestsSubtags[tag]!.map((sub) {
+                              return ChoiceChip(
+                                label: Text(sub, style: const TextStyle(fontSize: 13)),
+                                selected: selectedHabits.contains(sub),
+                                onSelected: (selected) {
+                                  setState(() {
+                                    selected ? selectedHabits.add(sub) : selectedHabits.remove(sub);
+                                  });
+                                },
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                  ]
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // mbti
+              const Text('MBTI'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: mbtiList.map((type) => ChoiceChip(
+                  label: Text(type),
+                  selected: selectedMBTI == type,
+                  onSelected: (_) => setState(() => selectedMBTI = type),
+                )).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // 星座
+              const Text('星座'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: zodiacList.map((sign) => ChoiceChip(
+                  label: Text(sign),
+                  selected: selectedZodiac == sign,
+                  onSelected: (_) => setState(() => selectedZodiac = sign),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                )).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // 生日
+              TextField(
+                controller: birthdayController,
+                readOnly: true,
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now().subtract(const Duration(days: 365 * 20)),
+                    firstDate: DateTime(1900),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    birthdayController.text = '${picked.year}/${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}';
+                  }
+                },
+                decoration: const InputDecoration(labelText: '生日'),
+              ),
+              const SizedBox(height: 16),
+
+              // 身高
+              TextField(
+                controller: heightController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '身高（公分）'),
+              ),
+              const SizedBox(height: 16),
+
+              // 在學狀態
+              const Text('在學狀態'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: educationLevelsList.map((status) => ChoiceChip(
+                  label: Text(status),
+                  selected: selectededucationLevels == status,
+                  onSelected: (_) => setState(() => selectededucationLevels = status),
+                )).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // 系所
+              DropdownSearch<String>(
+                popupProps: PopupProps.menu(
+                  showSearchBox: true, // 啟用搜尋欄
+                  searchFieldProps: TextFieldProps(
+                    decoration: InputDecoration(
+                      hintText: '輸入系所名稱搜尋',
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  fit: FlexFit.loose, // 確保選單適應內容
+                  constraints: BoxConstraints(maxHeight: 300), // 限制選單高度
+                ),
+                items: departmentList, // 你的系所列表
+                selectedItem: selectedDepartment, // 當前選擇的值
+                onChanged: (value) {
+                  setState(() {
+                    selectedDepartment = value!; // 更新選擇的值
+                  });
+                },
+                dropdownDecoratorProps: DropDownDecoratorProps(
+                  dropdownSearchDecoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    hintText: '請選擇系所',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 是否推薦同系所的人
+              const Text('是否推薦同系所的人'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => setState(() => matchSameDepartment = true),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: matchSameDepartment == true ? Colors.blue.shade100 : null,
+                    ),
+                    child: const Text('是'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => setState(() => matchSameDepartment = false),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: matchSameDepartment == false ? Colors.blue.shade100 : null,
+                    ),
+                    child: const Text('否'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 自我介紹
+              TextField(
+                controller: selfIntroController,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: '自我介紹'),
+              ),
+              const SizedBox(height: 32),
+
+              ElevatedButton(
+                onPressed: () {
+                  widget.onSave?.call({
+                    'name': nameController.text.trim(),
+                    'birthday': birthdayController.text.trim(),
+                    'selfIntro': selfIntroController.text.trim(),
+                    'habits': selectedHabits.toList(),
+                    'mbti': selectedMBTI,
+                    'zodiac': selectedZodiac,
+                    'educationLevels': selectededucationLevels,
+                    'department': selectedDepartment,
+                    'matchSameDepartment': matchSameDepartment,
+                    'gender': gender,
+                    'matchGender': matchGender.toList(),
+                    'matchSchools': matchSchools.toList(),
+                    'height': heightController.text.trim(),
+                    'photoUrl': _photoUrl,
+                    'tags': tags,
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text('儲存'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInterestChip(String tag) {
+    final selected = selectedHabits.contains(tag);
+    return ChoiceChip(
+      label: Text(tag),
+      selected: selected,
+      onSelected: (selected) {
+        setState(() {
+          selected ? selectedHabits.add(tag) : selectedHabits.remove(tag);
+          if (isInterestsExpanded.containsKey(tag)) {
+            isInterestsExpanded[tag] = !isInterestsExpanded[tag]!;
+            if (!selected) {
+              for(final subtag in interestsSubtags[tag] ?? []) {
+                if (selectedHabits.contains(subtag)) {
+                  selectedHabits.remove(subtag);
+                }
+              }
+            }
+          }
+        });
+      },
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
+  }
+
+  Widget _buildSchoolChoice(String label, String code) {
+    final isSelected = matchSchools.contains(code);
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          if (isSelected) {
+            matchSchools.remove(code);
+          } else {
+            matchSchools.add(code);
+          }
+        });
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected ? Colors.blue.shade100 : Colors.white,
+      ),
+      child: Text(label),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    setState(() {
+      _selectedImage = File(pickedFile.path);
+      _isUploadingPhoto = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final ref = FirebaseStorage.instance.ref().child('user_photos').child('${user.uid}.jpg');
+      await ref.putFile(_selectedImage!);
+      final url = await ref.getDownloadURL();
+
+      setState(() {
+        _photoUrl = url;
+        _isUploadingPhoto = false;
+      });
+    } catch (e) {
+      setState(() => _isUploadingPhoto = false);
+    }
   }
 }
 
