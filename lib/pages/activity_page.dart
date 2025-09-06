@@ -319,9 +319,9 @@ class _ActivityPageState extends State<ActivityPage> {
                                                         FieldValue.arrayRemove([activityId])
                                                   }, SetOptions(merge: true));
 
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    const SnackBar(content: Text("已刪除活動")),
-                                                  );
+                                                  // ScaffoldMessenger.of(context).showSnackBar(
+                                                  //   const SnackBar(content: Text("已刪除活動")),
+                                                  // );
                                                 },
                                               ),
                                             );
@@ -351,9 +351,9 @@ class _ActivityPageState extends State<ActivityPage> {
                           final userCreate = FirebaseAuth.instance.currentUser?.uid;
                           if (userCreate == null) {
                             Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('您尚未登入'))
-                            );
+                            // ScaffoldMessenger.of(context).showSnackBar(
+                            //   const SnackBar(content: Text('您尚未登入'))
+                            // );
                             setState(() => isSaving = false); // ✅ 還原按鈕
                             return;
                           }
@@ -369,9 +369,9 @@ class _ActivityPageState extends State<ActivityPage> {
                           final createdList = (snapshot.data()?["activityIds"] as List?) ?? [];
 
                           if (createdList.length >= 3) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("每天最多創建 3 個活動"))
-                            );
+                            // ScaffoldMessenger.of(context).showSnackBar(
+                            //   const SnackBar(content: Text("每天最多創建 3 個活動"))
+                            // );
                             setState(() => isSaving = false); // ✅ 還原按鈕
                             return;
                           }
@@ -409,9 +409,9 @@ class _ActivityPageState extends State<ActivityPage> {
 
                           Navigator.of(context).pop();
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('活動已創建'))
-                          );
+                          // ScaffoldMessenger.of(context).showSnackBar(
+                          //   const SnackBar(content: Text('活動已創建'))
+                          // );
                           _loadActivity();
                         }
 
@@ -535,9 +535,9 @@ class _ActivityPageState extends State<ActivityPage> {
                 .collection('activities')
                 .doc(activityId)
                 .delete();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('您是最後一位加入，活動已從列表刪除')),
-            );
+            // ScaffoldMessenger.of(context).showSnackBar(
+            //   const SnackBar(content: Text('您是最後一位加入，活動已從列表刪除')),
+            // );
           }
           //未達人數上限不用做事
           else{
@@ -583,20 +583,20 @@ class _ActivityPageState extends State<ActivityPage> {
                   .collection('activities')
                   .doc(activityId)
                   .delete();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('您是最後一位加入，活動已從列表刪除')),
-              );
+              // ScaffoldMessenger.of(context).showSnackBar(
+              //   const SnackBar(content: Text('您是最後一位加入，活動已從列表刪除')),
+              // );
             }
             await showMatchSuccessDialog(context);
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('活動已加入喜歡列表並創建群組')),
-            );
+            // ScaffoldMessenger.of(context).showSnackBar(
+            //   const SnackBar(content: Text('活動已加入喜歡列表並創建群組')),
+            // );
           }
           else{
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('活動已加入喜歡列表，但未達到創建群組的條件')),
-            );
+            // ScaffoldMessenger.of(context).showSnackBar(
+            //   const SnackBar(content: Text('活動已加入喜歡列表，但未達到創建群組的條件')),
+            // );
           }
         }
     }
@@ -635,13 +635,13 @@ class _ActivityPageState extends State<ActivityPage> {
         });
         await showMatchSuccessDialog(context);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('活動已加入喜歡列表並創建群組')));
+        // ScaffoldMessenger.of(context).showSnackBar(
+        // const SnackBar(content: Text('活動已加入喜歡列表並創建群組')));
       }
       else{
-        ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('活動已加入喜歡列表')),
-      );
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(content: Text('活動已加入喜歡列表')),
+      // );
       }
       
     }
@@ -661,9 +661,9 @@ class _ActivityPageState extends State<ActivityPage> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('無法開啟網址')),
-      );
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(content: Text('無法開啟網址')),
+      // );
     }
   }
 

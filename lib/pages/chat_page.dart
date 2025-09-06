@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'dart:async';
 // import 'package:path_provider/path_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dating_app/utils/notification_util.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -244,7 +245,6 @@ class _ChatPageState extends State<ChatPage> {
                           .value;
                       }
                       if(type == 'activity') {
-                        final displayPhotos = chatData['displayPhotos'] as Map<String, dynamic>? ?? {};
                         myPhotoUrl = chatData['groupPhotoUrl'] ?? '';
                       }
 
@@ -423,6 +423,27 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       'lastMessage': text,
       'lastMessageTime': FieldValue.serverTimestamp(),
     });
+
+    final chatDoc = await FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId).get();
+    final members = List<String>.from(chatDoc['members'] ?? []);
+    final type = chatDoc['type'] ?? '';
+    final groupName = chatDoc['groupName'] ?? '';
+
+    for (final targetUserId in members) {
+      if (targetUserId != currentUser!.uid) {
+        await sendPushNotification(
+          targetUserId: targetUserId,
+          title: type == 'activity'
+              ? groupName
+              : (chatDoc['displayNames'][targetUserId] ?? "某人"),
+          body: text,
+          data: {
+            'type': 'chat',
+            'chatRoomId': widget.chatRoomId,
+          },
+        );
+      }
+    }
   }
 
   Future<void> _pickImage(BuildContext context, String chatRoomId) async {
@@ -512,9 +533,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         'lastMessageTime': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('圖片上傳失敗: $e')),
-      );
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text('圖片上傳失敗: $e')),
+      // );
       _removeTempImageMessage(tempId);
     }
   }

@@ -90,9 +90,9 @@ class _AccountPageState extends State<AccountPage> {
 
     if (context.mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('個人資料已更新')),
-      );
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(content: Text('個人資料已更新')),
+      // );
     }
   }
 
