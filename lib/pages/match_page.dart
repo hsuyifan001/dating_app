@@ -551,6 +551,7 @@ class _MatchPageState extends State<MatchPage> {
         
         // 發送推播通知
         await sendPushNotification(
+          fromUserId: currentUserId,
           targetUserId: targetUserId,
           title: '配對成功！',
           body: '你和 ${currentUserDoc['name'] ?? '某人'} 配對成功了，快去聊聊吧 💕',

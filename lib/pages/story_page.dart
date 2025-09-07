@@ -1236,6 +1236,56 @@ class NotificationPage extends StatelessWidget {
 
   const NotificationPage({Key? key, required this.currentUserId}) : super(key: key);
 
+  Widget userPhotoAvatar(String? fromUserId) {
+    if (fromUserId == null || fromUserId.isEmpty) {
+      // If no user ID, return default icon
+      return CircleAvatar(
+        radius: 26,
+        backgroundColor: Colors.grey.shade300,
+        child: const Icon(Icons.notifications, color: Colors.white),
+      );
+    }
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(fromUserId).get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Loading state
+          return CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.grey.shade300,
+            child: CircularProgressIndicator(color: Colors.white),
+          );
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          // User document not found
+          return CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.grey.shade300,
+            child: const Icon(Icons.notifications, color: Colors.white),
+          );
+        }
+
+        String? photoUrl = snapshot.data!.get('photoUrl') as String?;
+        if (photoUrl == null || photoUrl.isEmpty) {
+          // No photo URL available
+          return CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.grey.shade300,
+            child: const Icon(Icons.notifications, color: Colors.white),
+          );
+        }
+
+        // Display user photo from URL
+        return CircleAvatar(
+          radius: 26,
+          backgroundImage: NetworkImage(photoUrl),
+          backgroundColor: Colors.grey.shade300,
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1334,21 +1384,18 @@ class NotificationPage extends StatelessWidget {
                         itemCount: notices.length,
                         itemBuilder: (context, index) {
                           final notice = notices[index].data() as Map<String, dynamic>;
+                          final fromuserId = notice['fromUserId'] as String?;
                           final title = notice['title'] ?? '無標題';
                           final body = notice['body'] ?? '無內容';
                           final timestamp = (notice['timestamp'] as Timestamp?)?.toDate();
                           final timeStr = timestamp != null
-                              ? DateFormat('MM/dd HH:mm').format(timestamp)
+                              ? timeago.format(timestamp)
                               : '';
             
                           return Container(
                             color: Colors.white,
                             child: ListTile(
-                              leading: CircleAvatar(
-                                radius: 26,
-                                backgroundColor: Colors.grey.shade300,
-                                child: const Icon(Icons.notifications, color: Colors.white),
-                              ),
+                              leading: userPhotoAvatar(fromuserId),
                               title: Text(
                                 title,
                                 style: const TextStyle(

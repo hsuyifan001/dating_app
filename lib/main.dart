@@ -9,6 +9,8 @@ import 'home_page.dart';
 import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
 
 void main() async { // 記得awit要配上async
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +21,7 @@ void main() async { // 記得awit要配上async
   ]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await setupFcm();
+  timeago.setLocaleMessages('zh', timeago.ZhMessages()); // 設定中文本地化
   runApp(const MyApp()); //MyApp = 你的APP名稱
 }
 
