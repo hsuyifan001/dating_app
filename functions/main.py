@@ -205,45 +205,45 @@ def create_restaurant_activity(req: https_fn.Request) -> https_fn.Response:
     
     return https_fn.Response(f"Restaurant activity {activity.id} created successfully.")
 
-@https_fn.on_call()
-def sendNotification(request):
-    """Send FCM notification to a specific user."""
-    # 檢查認證
-    if not request.auth:
-        raise https_fn.HttpsError("unauthenticated", "必須登入才能發送通知")
+# @https_fn.on_call()
+# def sendNotification(request):
+#     """Send FCM notification to a specific user."""
+#     # 檢查認證
+#     if not request.auth:
+#         raise https_fn.HttpsError("unauthenticated", "必須登入才能發送通知")
 
-    # 提取參數
-    data = request.data
-    fcm_token = data.get("fcmToken")
-    title = data.get("title")
-    body = data.get("body")
-    notification_data = data.get("data", {})
+#     # 提取參數
+#     data = request.data
+#     fcm_token = data.get("fcmToken")
+#     title = data.get("title")
+#     body = data.get("body")
+#     notification_data = data.get("data", {})
 
-    if not fcm_token or not title or not body:
-        raise https_fn.HttpsError("invalid-argument", "缺少必要參數：fcmToken、title、body")
+#     if not fcm_token or not title or not body:
+#         raise https_fn.HttpsError("invalid-argument", "缺少必要參數：fcmToken、title、body")
 
-    # 構建 FCM 訊息
-    message = messaging.Message(
-        token=fcm_token,
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
-        data=notification_data,
-        android=messaging.AndroidConfig(
-            priority="high",
-        ),
-        apns=messaging.APNSConfig(
-            payload=messaging.APNSPayload(
-                aps=messaging.Aps(badge=1, sound="default")
-            ),
-        ),
-    )
+#     # 構建 FCM 訊息
+#     message = messaging.Message(
+#         token=fcm_token,
+#         notification=messaging.Notification(
+#             title=title,
+#             body=body,
+#         ),
+#         data=notification_data,
+#         android=messaging.AndroidConfig(
+#             priority="high",
+#         ),
+#         apns=messaging.APNSConfig(
+#             payload=messaging.APNSPayload(
+#                 aps=messaging.Aps(badge=1, sound="default")
+#             ),
+#         ),
+#     )
 
-    try:
-        # 發送通知
-        messaging.send(message)
-        return {"success": True, "message": "通知發送成功"}
-    except Exception as e:
-        print(f"發送通知失敗: {str(e)}")
-        raise https_fn.HttpsError("internal", f"發送通知失敗: {str(e)}")
+#     try:
+#         # 發送通知
+#         messaging.send(message)
+#         return {"success": True, "message": "通知發送成功"}
+#     except Exception as e:
+#         print(f"發送通知失敗: {str(e)}")
+#         raise https_fn.HttpsError("internal", f"發送通知失敗: {str(e)}")

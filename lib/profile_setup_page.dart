@@ -327,8 +327,41 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
       print('儲存 FCM 權杖失敗: $e');
     }
 
+    // 新增：生成初始配對
+    await _generateInitialMatches(user.uid);
+
     if (context.mounted) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+    }
+  }
+
+  // 新增方法：生成初始配對
+  Future<void> _generateInitialMatches(String userId) async {
+    try {
+      // 直接查詢所有用戶（限制 100 個）
+      final snapshot = await FirebaseFirestore.instance.collection('users').limit(100).get();
+      final allUsers = snapshot.docs.where((doc) => doc.id != userId).toList();
+
+      // 隨機打亂並選擇前 25 個
+      allUsers.shuffle();
+      final selectedCandidates = allUsers.take(25).toList();
+
+      // 儲存到 dailyMatches
+      final matchDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('dailyMatches')
+        .doc(DateTime.now().toIso8601String().substring(0, 10).replaceAll('-', ''));
+
+      await matchDocRef.set({
+        'createdAt': FieldValue.serverTimestamp(),
+        'userIds': selectedCandidates.map((doc) => doc.id).toList(),
+        'currentMatchIdx': 0,
+      });
+
+      print('初始配對已生成，共 ${selectedCandidates.length} 個用戶');
+    } catch (e) {
+      print('生成初始配對失敗: $e');
     }
   }
 
