@@ -443,6 +443,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
               ? groupName
               : (chatDoc['displayNames']?[targetUserId] ?? '某人');
           await sendPushNotification(
+            fromUserId: currentUser!.uid,
             targetUserId: targetUserId,
             title: title.isEmpty ? '群組聊天' : title, // 確保標題非空
             body: text,

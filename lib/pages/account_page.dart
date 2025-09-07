@@ -278,17 +278,17 @@ class _AccountPageState extends State<AccountPage> {
 
   // 新增標題區塊widget
   Widget buildTitleBlock(double screenWidth, double screenHeight) {
-    //double pxW(double px) => screenWidth * (px / 412);
+    double pxW(double px) => screenWidth * (px / 412);
     //double pxH(double px) => screenHeight * (px / 917);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Expanded(
+        Expanded(
           flex: 1,
           child: Image(
             image: AssetImage('assets/qing.png'),
-            width: 22,
+            width: pxW(28),
           ),
         ),
         const SizedBox(width: 8),
