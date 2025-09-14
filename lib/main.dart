@@ -10,7 +10,7 @@ import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
 import 'package:timeago/timeago.dart' as timeago;
-
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 void main() async { // 記得awit要配上async
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,11 +19,29 @@ void main() async { // 記得awit要配上async
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await setupFcm();
-  timeago.setLocaleMessages('zh', timeago.ZhMessages()); // 設定中文本地化
+
+  await FirebaseAppCheck.instance.activate(
+    // For web applications, use reCAPTCHA v3. You'll need to replace 'recaptcha-v3-site-key'
+    // with your actual reCAPTCHA v3 site key obtained from the Google reCAPTCHA console.
+    webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+
+    // For Android, Play Integrity Provider is the recommended default.
+    // During development, you might use AndroidProvider.debug for easier testing,
+    // but remember to switch to Play Integrity for production.
+    androidProvider: AndroidProvider.debug,
+
+    // For Apple platforms (iOS/macOS), App Attest is the recommended default for devices.
+    // For simulators or specific testing, you might use AppleProvider.debug or Device Check.
+    appleProvider: AppleProvider.appAttest, // Or AppleProvider.debug, AppleProvider.deviceCheck
+  );
   runApp(const MyApp()); //MyApp = 你的APP名稱
 }
+
+
+
 
 Future<void> setupFcm() async {
   try {
@@ -201,7 +219,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
         .get();
 
     if (context.mounted) {
-      if (!userDoc.exists) {
+      if (!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('name')) {
         // 第一次登入 → 導向學校選擇頁面
         Navigator.pushReplacement(
           context,
@@ -276,7 +294,7 @@ Future<void> _requestPermissions() async {
     // 檢查 Firestore 裡是否已有該使用者的個人資料
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
-    if (userDoc.exists) {
+    if ((!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('name'))) {
       // 有個人資料 → 進首頁
       setState(() {
         _startPage = const HomePage();

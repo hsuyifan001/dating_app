@@ -59,6 +59,7 @@ dependencies:
   auto_size_text: ^3.0.0
 
   url_launcher: ^6.1.7
+  firebase_app_check: ^0.3.2+10
 
   
 

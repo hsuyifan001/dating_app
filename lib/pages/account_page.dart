@@ -477,11 +477,11 @@ class _AccountPageState extends State<AccountPage> {
               SizedBox(height: h(8)),
 
               SizedBox(
-                height: h(30), // 自我介紹內容可以用較高高度因字數較多
+                height: h(100), // 自我介紹內容可以用較高高度因字數較多
                 width: w(300),
                 child: AutoSizeText(
                   '$selfIntro${selfIntro.isNotEmpty ? '' : '尚未填寫'}',
-                  maxLines: 1,
+                  
                   style: const TextStyle(
                       fontSize: 20,
                       color: Colors.black87,
