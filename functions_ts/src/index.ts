@@ -42,9 +42,14 @@ export const dailyMatchUpdate = onSchedule(
   async (_event) => {
     const db = admin.firestore();
     const now = new Date();
-    const todayKey = now.toISOString()
-      .slice(0, 10)
-      .replace(/-/g, ""); // YYYYMMDD
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const taipeiDateStr = formatter.format(now); // YYYY-MM-DD
+  const todayKey = taipeiDateStr.replace(/-/g, ""); // YYYYMMDD
 
     try {
       // 取得所有用戶
