@@ -875,7 +875,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
   
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        throw Exception('使用者未登入');
+      }
   
       // 1️⃣ 壓縮圖片
       final Uint8List? compressedImage = await FlutterImageCompress.compressWithFile(

@@ -707,10 +707,66 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
   }
 
 
+    // 新增標題區塊widget
+  Widget buildTitleBlock(double screenWidth, double screenHeight) {
+    double pxW(double px) => screenWidth * (px / 412);
+    //double pxH(double px) => screenHeight * (px / 917);
 
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          flex: 1,
+          child: Image(
+            image: AssetImage('assets/paw.png'),
+            width: pxW(28),
+          ),
+        ),
+        const SizedBox(width: 8),
+        const Expanded(
+          flex: 6,
+          child: Text(
+            "動態",
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: IconButton(
+            padding: EdgeInsets.zero, // 移除預設內距
+            iconSize: pxW(28), // 確保圖片大小一致
+            icon: Image.asset('assets/star.png'),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => NotificationPage(currentUserId: currentUser.uid),
+                ),
+              );
+            },
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: IconButton(
+            icon:  Icon(Icons.add_box_outlined, color: Colors.black, size: pxW(28)),
+            onPressed: () {
+              _openAddStoryDialog();
+            },
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: Color(0xFCD3F8F3),
       body: Padding(
@@ -732,50 +788,7 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
                   )
                 ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    flex: 1,
-                    child: Image(
-                      image: AssetImage('assets/paw.png'),
-                      width: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    flex: 6,
-                    child: Text(
-                      "動態",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: IconButton(
-                      padding: EdgeInsets.zero, // 移除預設內距
-                      iconSize: 43, // 確保圖片大小一致
-                      icon: Image.asset('assets/star.png'),
-                      onPressed: () {
-                        //等待實作訊息通知頁
-
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: IconButton(
-                      icon: const Icon(Icons.add_box_outlined, color: Colors.black, size: 60),
-                      onPressed: () {
-                        _openAddStoryDialog();
-                      },
-                    ),
-                  ),
-                ],
-              ),
+              child: buildTitleBlock(screenWidth, screenHeight),
             ),
 
             const SizedBox(height: 12),
@@ -1217,3 +1230,210 @@ class _StoryImageState extends State<_StoryImage> with AutomaticKeepAliveClientM
   bool get wantKeepAlive => true;
 }
 
+
+class NotificationPage extends StatelessWidget {
+  final String currentUserId;
+
+  const NotificationPage({Key? key, required this.currentUserId}) : super(key: key);
+
+  Widget userPhotoAvatar(String? fromUserId) {
+    if (fromUserId == null || fromUserId.isEmpty) {
+      // If no user ID, return default icon
+      return CircleAvatar(
+        radius: 26,
+        backgroundColor: Colors.grey.shade300,
+        child: const Icon(Icons.notifications, color: Colors.white),
+      );
+    }
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(fromUserId).get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Loading state
+          return CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.grey.shade300,
+            child: CircularProgressIndicator(color: Colors.white),
+          );
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          // User document not found
+          return CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.grey.shade300,
+            child: const Icon(Icons.notifications, color: Colors.white),
+          );
+        }
+
+        String? photoUrl = snapshot.data!.get('photoUrl') as String?;
+        if (photoUrl == null || photoUrl.isEmpty) {
+          // No photo URL available
+          return CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.grey.shade300,
+            child: const Icon(Icons.notifications, color: Colors.white),
+          );
+        }
+
+        // Display user photo from URL
+        return CircleAvatar(
+          radius: 26,
+          backgroundImage: NetworkImage(photoUrl),
+          backgroundColor: Colors.grey.shade300,
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    double pxW(double px) => screenWidth * (px / 412);
+
+    return Scaffold(
+      backgroundColor: Color(0xFCD3F8F3),
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 48, 12, 12),
+        child: Column(
+          children: [
+            // 頂部標題區（第二組UI風格）
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Color(0xFFFFC8CA),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  )
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Image(
+                      image: AssetImage('assets/paw.png'),
+                      width: pxW(22),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    flex: 6,
+                    child: Text(
+                      "通知",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),                  
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+            // 通知列表 
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.black, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(currentUserId)
+                        .collection('notices')
+                        .orderBy('timestamp', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+            
+                      final notices = snapshot.data!.docs;
+            
+                      if (notices.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            "目前沒有通知",
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        );
+                      }
+            
+                      return ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: notices.length,
+                        itemBuilder: (context, index) {
+                          final notice = notices[index].data() as Map<String, dynamic>;
+                          final fromuserId = notice['fromUserId'] as String?;
+                          final title = notice['title'] ?? '無標題';
+                          final body = notice['body'] ?? '無內容';
+                          final timestamp = (notice['timestamp'] as Timestamp?)?.toDate();
+                          final timeStr = timestamp != null
+                              ? timeago.format(timestamp)
+                              : '';
+            
+                          return Container(
+                            color: Colors.white,
+                            child: ListTile(
+                              leading: userPhotoAvatar(fromuserId),
+                              title: Text(
+                                title,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                body,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Text(
+                                timeStr,
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+            
+            
+            
+          ],
+        ),
+      )
+
+    );
+    }
+
+}

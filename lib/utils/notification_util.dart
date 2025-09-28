@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 Future<void> sendPushNotification({
+  required String fromUserId,
   required String targetUserId,
   required String title,
   required String body,
@@ -26,6 +27,7 @@ Future<void> sendPushNotification({
     });
 
     await firestore.collection('users').doc(targetUserId).collection('notices').add({
+      'fromUserId': fromUserId,
       'title': title,
       'body': body,
       'data': data ?? {},
