@@ -770,7 +770,7 @@ Future<void> _submitReport(BuildContext context, String reporterId, String repor
                     child: IconButton(
                       icon: Icon(Icons.more_vert, color: Colors.black),
                       onPressed: () {
-                        _showReportMenu(context, currentUser!.uid, widget.chatRoomId);
+                        showReportMenu(context, currentUser!.uid, widget.chatRoomId);
                       },
                     ),
                   )               
