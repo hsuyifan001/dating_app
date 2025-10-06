@@ -558,6 +558,131 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     }
   }
 
+  /// 顯示檢舉選單
+  Future<void> showReportMenu(BuildContext context, String currentUserId, String chatRoomId) async {
+    try {
+      // 取得聊天室資料
+      final chatDoc = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatRoomId)
+          .get();
+
+      if (!chatDoc.exists) {
+        print('聊天室 $chatRoomId 不存在');
+        return;
+      }
+
+      // 取得成員列表
+      final members = List<String>.from(chatDoc['members'] ?? []);
+      final reportTargets = members.where((id) => id != currentUserId).toList();
+
+      if (reportTargets.isEmpty) {
+        print('沒有可檢舉的成員');
+        return;
+      }
+
+      // 抓取成員的名字
+      final List<Map<String, String>> usersInfo = [];
+      for (final userId in reportTargets) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
+        if (userDoc.exists) {
+          usersInfo.add({
+            'id': userId,
+            'name': userDoc['name'] ?? '未命名使用者',
+          });
+        }
+      }
+
+      // 顯示選單
+      showModalBottomSheet(
+        context: context,
+        builder: (context) {
+          return ListView(
+            children: usersInfo.map((user) {
+              return ListTile(
+                title: Text(user['name']!),
+                onTap: () {
+                  Navigator.pop(context); // 關閉 bottom sheet
+                  print('檢舉 ${user['id']} - ${user['name']}');
+                  // TODO: 這邊接你的檢舉邏輯
+                  _showReportReasons(context, currentUserId, user['id']!);
+                },
+              );
+            }).toList(),
+          );
+        },
+      );
+    } catch (e) {
+      //print('取得聊天室成員或顯示檢舉選單時發生錯誤: $e');
+    }
+  }
+
+
+  /// 顯示檢舉原因
+  void _showReportReasons(BuildContext context, String reporterId, String reportedUserId) {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.report, color: Colors.red),
+                title: Text("檢舉兒少安全問題"),
+                onTap: () {
+                  _submitReport(context, reporterId, reportedUserId, "CSAE");
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.person_off, color: Colors.orange),
+                title: Text("冒充身分"),
+                onTap: () {
+                  _submitReport(context, reporterId, reportedUserId, "Impersonation");
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.block, color: Colors.blue),
+                title: Text("不當內容"),
+                onTap: () {
+                  _submitReport(context, reporterId, reportedUserId, "Inappropriate Content");
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+/// 寫入 Firestore
+Future<void> _submitReport(BuildContext context, String reporterId, String reportedUserId, String reason) async {
+  try {
+    await FirebaseFirestore.instance.collection("reports").add({
+      "reporterId": reporterId,
+      "reportedUserId": reportedUserId,
+      "reason": reason,
+      "createdAt": FieldValue.serverTimestamp(),
+    });
+
+    Navigator.pop(context); // 關閉 bottom sheet
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("已送出檢舉")),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("檢舉失敗，請稍後再試")),
+    );
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -642,12 +767,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   ),
                   Expanded(
                     flex: 2,
-                    child: SizedBox(), // 暫時將三個點隱藏起來
-                    // child: IconButton(
-                    //   icon: Icon(Icons.more_vert, color: Colors.black),
-                    //   onPressed: () {}
-                    // ),
-                  )
+                    child: IconButton(
+                      icon: Icon(Icons.more_vert, color: Colors.black),
+                      onPressed: () {
+                        _showReportMenu(context, currentUser!.uid, widget.chatRoomId);
+                      },
+                    ),
+                  )               
                 ],
               ),
             ),
