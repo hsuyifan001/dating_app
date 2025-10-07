@@ -123,6 +123,124 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
+
+  Future<void> deleteUserAccount(BuildContext context) async {
+    final firestore = FirebaseFirestore.instance;
+    final auth = FirebaseAuth.instance;
+    final currentUser = auth.currentUser;
+
+    if (currentUser == null) return;
+
+    final currentUserId = currentUser.uid;
+
+    try {
+      // 確認刪除
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("確認刪除帳號"),
+          content: const Text("帳號刪除後將無法恢復，確定要繼續嗎？"),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("取消")),
+            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("刪除")),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
+      // 1️⃣ 刪除使用者主資料
+      // 🔹 Step 1: 刪除已知子集合（例如 'pushed', 'matches'）
+      final userDocRef = firestore.collection('users').doc(currentUserId);
+      final subcollectionNames = ['dailyMatches','pushed', 'matches','notices','pushed']; // 根據你的資料結構補齊所有子集合名稱
+
+      for (final name in subcollectionNames) {
+        final subcollection = userDocRef.collection(name);
+        final docs = await subcollection.get();
+        for (final doc in docs.docs) {
+          await doc.reference.delete();
+        }
+      }
+
+      // 🔹 Step 2: 刪除主文件
+      await userDocRef.delete();
+
+      // 2️⃣ 刪除所有其他使用者底下的 pushed / matches 中有該使用者的紀錄
+      final allUsers = await firestore.collection('users').get();
+      for (var userDoc in allUsers.docs) {
+        final userId = userDoc.id;
+        if (userId == currentUserId) continue;
+
+        // pushed
+        final pushedRef = firestore.collection('users').doc(userId).collection('pushed');
+        final pushedDocs = await pushedRef.where('userId', isEqualTo: currentUserId).get();
+        for (var doc in pushedDocs.docs) {
+          await pushedRef.doc(doc.id).delete();
+        }
+
+        // matches
+        final matchesRef = firestore.collection('users').doc(userId).collection('matches');
+        final matchDocs = await matchesRef.where('userId', isEqualTo: currentUserId).get();
+        for (var doc in matchDocs.docs) {
+          await matchesRef.doc(doc.id).delete();
+        }
+      }
+
+      // 3️⃣ 刪除 likes 集合中與該使用者有關的紀錄
+      final likesRef = firestore.collection('likes');
+      final allLikes = await likesRef.get();
+      for (var doc in allLikes.docs) {
+        if (doc.id.contains(currentUserId)) {
+          await likesRef.doc(doc.id).delete();
+        }
+      }     
+
+      // 4️⃣ 刪除 chats 集合中與該使用者有關的聊天室
+      final chatsRef = firestore.collection('chats');
+      final allChats = await chatsRef.get();
+      for (var chat in allChats.docs) {
+       if (chat.id.contains(currentUserId)) {
+         final messagesRef = chatsRef.doc(chat.id).collection('messages');
+
+             // 🔹 先刪除 messages 子集合
+         final messagesSnapshot = await messagesRef.get();
+         for (var msg in messagesSnapshot.docs) {
+           await msg.reference.delete();
+         }
+
+             // 🔹 再刪除 chat 文件
+         await chat.reference.delete();
+
+           //  print("🗑️ 已刪除聊天 ${chat.id} 及其 messages 子集合");
+       }
+     }
+
+      // 5️⃣ 刪除 Firebase Auth 帳號
+      await currentUser.delete();
+
+      // 6️⃣ 導回 WelcomePage
+      await FirebaseAuth.instance.signOut();
+      await GoogleSignIn().signOut();
+
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const WelcomePage()),
+          (route) => false,
+        );
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("帳號已刪除")),
+      );
+    } catch (e) {
+      debugPrint("❌ 刪除帳號時發生錯誤: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("刪除失敗：$e")),
+      );
+    }
+  }
+
   void showEditBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -303,14 +421,13 @@ class _AccountPageState extends State<AccountPage> {
           ),
         ),
         Expanded(
-          flex: 1,
-          child: SizedBox(), // 暫時將三個點隱藏起來
-          // child: IconButton(
-          //   icon: const Icon(Icons.more_vert, color: Colors.black),
-          //   onPressed: () {
-          //     // TODO: 搜尋或更多功能
-          //   },
-          // ),
+          flex: 2,
+          child: IconButton(
+            icon: const Icon(Icons.more_vert, color: Colors.black),
+            onPressed: () {
+              deleteUserAccount(context);
+            },
+          ),
         ),
       ],
     );
@@ -716,6 +833,7 @@ class _AccountPageState extends State<AccountPage> {
                 child: buildSelfprofileBlock(screenWidth, screenHeight),
               ),
             ),
+            
           ],
         ),
       )
