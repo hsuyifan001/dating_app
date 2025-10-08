@@ -188,7 +188,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
     final String email = googleUser.email;
     
     // 登入前先檢查信箱格式
-    if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw') && email != ' qq171846@gmail.com') {
+    if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw') && email != 'qq171846@gmail.com') {
       await googleSignIn.signOut();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
