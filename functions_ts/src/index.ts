@@ -36,20 +36,20 @@ export const sendNotification = onCall(async (request) => {
 // 每日配對更新 function
 export const dailyMatchUpdate = onSchedule(
   {
-    schedule: "0 5,11,16,20 * * *", // 每天 5:00, 11:00, 16:00, 20:00 觸發 (UTC 時間)
+    schedule: "0 5 * * *", // 每天 5:00 觸發 (UTC 時間)
     timeZone: "Asia/Taipei", // 設定時區為台灣
   },
   async (_event) => {
     const db = admin.firestore();
     const now = new Date();
     const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const taipeiDateStr = formatter.format(now); // YYYY-MM-DD
-  const todayKey = taipeiDateStr.replace(/-/g, ""); // YYYYMMDD
+      timeZone: "Asia/Taipei",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const taipeiDateStr = formatter.format(now); // YYYY-MM-DD
+    const todayKey = taipeiDateStr.replace(/-/g, ""); // YYYYMMDD
 
     try {
       // 取得所有用戶
