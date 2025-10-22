@@ -2,21 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>我們需要使用相簿上傳您的照片</string>
-	<key>NSCameraUsageDescription</key>
-	<string>我們需要使用相機拍攝您的照片</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>我們需要儲存拍攝的照片到相簿</string>
-	<!-- 添加推播通知權限描述 -->
-	<key>NSUserNotificationsUsageDescription</key>
-	<string>允許洋青椒發送通知以提醒您新訊息或配對成功</string>
-	<!-- 啟用背景模式以處理推播通知 -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
-
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -35,10 +22,37 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>GoogleSignIn</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.137173225324-64tnl1i321s7li42fj0cvm5j0ij099io</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>我們需要使用相機拍攝您的照片</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>我們需要儲存拍攝的照片到相簿</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>我們需要使用相簿上傳您的照片</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>允許洋青椒發送通知以提醒您新訊息或配對成功</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -56,9 +70,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
 </dict>
 </plist>
