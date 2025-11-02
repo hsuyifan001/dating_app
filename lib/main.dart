@@ -9,8 +9,10 @@ import 'home_page.dart';
 import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
-import 'package:timeago/timeago.dart' as timeago;
+// 'timeago' 未使用，保留註解以便將來需要時再啟用
+// import 'package:timeago/timeago.dart' as timeago;
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 
 void main() async { // 記得awit要配上async
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,8 +88,111 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class WelcomePage extends StatelessWidget {
+class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  bool _showDemoLogin = false;
+  bool _loadingConfig = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRemoteConfig();
+  }
+
+  Future<void> _loadRemoteConfig() async {
+    try {
+      final remoteConfig = FirebaseRemoteConfig.instance;
+      await remoteConfig.setConfigSettings(RemoteConfigSettings(
+        fetchTimeout: const Duration(seconds: 10),
+        minimumFetchInterval: const Duration(seconds: 0),
+      ));
+      await remoteConfig.fetchAndActivate();
+      final show = remoteConfig.getBool('showDemoLogin');
+      setState(() {
+        _showDemoLogin = show;
+        _loadingConfig = false;
+      });
+    } catch (e) {
+      // 若失敗則預設不顯示按鈕，並紀錄錯誤
+      print('RemoteConfig 讀取失敗: $e');
+      setState(() {
+        _loadingConfig = false;
+        _showDemoLogin = false;
+      });
+    }
+  }
+
+  Future<void> _showEmailPasswordDialog() async {
+    final formKey = GlobalKey<FormState>();
+    String email = '';
+    String password = '';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Email / 密碼 登入'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  decoration: const InputDecoration(labelText: '電子郵件'),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (v) => (v == null || v.isEmpty) ? '請輸入電子郵件' : null,
+                  onSaved: (v) => email = v!.trim(),
+                ),
+                TextFormField(
+                  decoration: const InputDecoration(labelText: '密碼'),
+                  obscureText: true,
+                  validator: (v) => (v == null || v.isEmpty) ? '請輸入密碼' : null,
+                  onSaved: (v) => password = v!.trim(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                formKey.currentState!.save();
+                try {
+                  final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+                    email: email,
+                    password: password,
+                  );
+                  final user = cred.user;
+                  Navigator.of(dialogContext).pop();
+                  if (user != null) {
+                    await _postSignInNavigation(context, user);
+                  }
+                } catch (e) {
+                  // 顯示錯誤訊息
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(content: Text('登入失敗：$e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('登入'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +266,23 @@ class WelcomePage extends StatelessWidget {
                       side: const BorderSide(color: Color(0xFF89C9C2), width: 2),
                     ),
                   ),
+
+                  if (_loadingConfig) const SizedBox(height: 12),
+
+                  if (!_loadingConfig && _showDemoLogin) ...[
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => _showEmailPasswordDialog(),
+                      label: const Text('使用 Email/密碼登入 (Demo)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        minimumSize: const Size(double.infinity, 50),
+                        side: const BorderSide(color: Color(0xFF89C9C2), width: 2),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 200),
                 ],
               ),
@@ -212,28 +334,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
       throw Exception('Firebase 使用者為空');
     }
 
-    // 檢查是否已有個人資料
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-
-    if (context.mounted) {
-      if (!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('name')) {
-        // 第一次登入 → 導向學校選擇頁面
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
-        );
-      }
-      else {
-        // 已建立個人資料，進入主頁
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
-      }
-    }
+    await _postSignInNavigation(context, user);
 
   } catch (e) {
     if (context.mounted) {
@@ -317,5 +418,33 @@ Future<void> _requestPermissions() async {
       );
     }
     return _startPage!;
+  }
+}
+
+Future<void> _postSignInNavigation(BuildContext context, User user) async {
+  try {
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+    if (context.mounted) {
+      if (!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('name')) {
+        // 第一次登入 → 導向學校選擇頁面
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfileSetupPage()),
+        );
+      } else {
+        // 已建立個人資料，進入主頁
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      }
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('登入後導向失敗：$e')),
+      );
+    }
   }
 }
