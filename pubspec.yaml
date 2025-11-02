@@ -61,6 +61,8 @@ dependencies:
   url_launcher: ^6.1.7
   firebase_app_check: ^0.3.2+10
 
+  firebase_remote_config: ^5.5.0
+
   
 
 dev_dependencies:
