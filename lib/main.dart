@@ -8,6 +8,7 @@ import 'profile_setup_page.dart'; // 等下會建立
 import 'home_page.dart';
 import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'services/fcm_service.dart';
 import 'package:flutter/services.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -40,30 +41,28 @@ void main() async { // 記得awit要配上async
   runApp(const MyApp()); //MyApp = 你的APP名稱
 }
 
-
-
-
 Future<void> setupFcm() async {
   try {
     final fcm = FirebaseMessaging.instance;
     await fcm.requestPermission(alert: true, badge: true, sound: true);
     final fcmToken = await fcm.getToken();
-    print('FCM 權杖: $fcmToken');
+    print('FCM 權杖(暫存): $fcmToken');
+
+    // 暫存 token，不立即建立 users doc
+    FcmService.setPendingToken(fcmToken);
+
+    // 若已登入且 user doc 已存在，嘗試寫入
     final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId != null && fcmToken != null) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .set({'fcmToken': fcmToken}, SetOptions(merge: true));
-      print('FCM 權杖已儲存至 Firestore: $userId');
+    if (userId != null) {
+      await FcmService.saveTokenIfUserProfileExists(userId);
     }
+
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-      if (userId != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .set({'fcmToken': newToken}, SetOptions(merge: true));
-        print('FCM 權杖更新: $newToken');
+      print('FCM 權杖 refresh(暫存): $newToken');
+      FcmService.setPendingToken(newToken);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await FcmService.saveTokenIfUserProfileExists(uid);
       }
     });
   } catch (e) {
@@ -178,11 +177,12 @@ Future<void> _signInWithGoogle(BuildContext context) async {
   try {
     final GoogleSignIn googleSignIn = GoogleSignIn();
 
-    // 強制登出，讓使用者每次都能重新選帳號
-    await googleSignIn.signOut();
-
-    // 選擇帳號登入
-    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+    // 先嘗試靜默登入（若使用者先前已授權）
+    GoogleSignInAccount? googleUser = await googleSignIn.signInSilently();
+    if (googleUser == null) {
+      // 若靜默登入失敗，才開啟帳號選擇流程
+      googleUser = await googleSignIn.signIn();
+    }
     if (googleUser == null) return; // 使用者取消登入
 
     final String email = googleUser.email;
@@ -252,70 +252,82 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  bool _isLoading = true;
-  Widget? _startPage;
+  bool _permissionsChecked = false;
 
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _init();
   }
 
-Future<void> _requestPermissions() async {
-  final statuses = await [
-    Permission.photos,
-    Permission.storage,
-  ].request();
-
-  if (statuses[Permission.photos] != PermissionStatus.granted &&
-      statuses[Permission.storage] != PermissionStatus.granted) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請允許權限以使用照片與檔案功能')),
-      );
-    }
-  }
-}
-
-
-  Future<void> _checkAuth() async {
+  Future<void> _init() async {
     await _requestPermissions();
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      // 未登入 → 歡迎頁面
+    if (mounted) {
       setState(() {
-        _startPage = const WelcomePage();
-        _isLoading = false;
+        _permissionsChecked = true;
       });
-      return;
     }
+  }
 
-    // 檢查 Firestore 裡是否已有該使用者的個人資料
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+  Future<void> _requestPermissions() async {
+    final statuses = await [
+      Permission.photos,
+      Permission.storage,
+    ].request();
 
-    if ((!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('name'))) {
-      // 有個人資料 → 進首頁
-      setState(() {
-        _startPage = const HomePage();
-        _isLoading = false;
-      });
-    } else {
-      // 無個人資料 → 導向編輯頁
-      setState(() {
-        _startPage = const WelcomePage();
-        _isLoading = false;
-      });
+    if (statuses[Permission.photos] != PermissionStatus.granted &&
+        statuses[Permission.storage] != PermissionStatus.granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('請允許權限以使用照片與檔案功能')),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (!_permissionsChecked) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    return _startPage!;
+
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnap) {
+        if (authSnap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final user = authSnap.data;
+        if (user == null) {
+          // 未登入 → 顯示歡迎 / 登入頁
+          return const WelcomePage();
+        }
+
+        // 已登入 → 檢查 Firestore 是否有個人資料
+        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+          builder: (context, userDocSnap) {
+            if (userDocSnap.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            if (userDocSnap.hasError) {
+              return const Scaffold(body: Center(child: Text('讀取使用者資料失敗')));
+            }
+
+            final doc = userDocSnap.data;
+            final hasProfile = doc != null && (doc.data()?['name'] != null);
+
+            if (hasProfile) {
+              return const HomePage();
+            } else {
+              return const ProfileSetupPage();
+            }
+          },
+        );
+      },
+    );
   }
 }

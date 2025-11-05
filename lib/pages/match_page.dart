@@ -1120,7 +1120,7 @@ class _MatchPageState extends State<MatchPage> {
                         _buildInfoLine("學歷", userData['educationLevels']),
                         _buildInfoLine("性別", userData['gender']),
                         _buildInfoLine("生日", userData['birthday']),
-                        _buildInfoLine("身高", userData['height']),
+                        // _buildInfoLine("身高", userData['height']),
                         _buildInfoLine("MBTI", userData['mbti']),
                         _buildInfoLine("星座", userData['zodiac']),
                         const SizedBox(height: 12),
