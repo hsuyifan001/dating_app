@@ -767,13 +767,23 @@ Future<void> _submitReport(BuildContext context, String reporterId, String repor
                   ),
                   Expanded(
                     flex: 2,
-                    child: IconButton(
-                      icon: Icon(Icons.more_vert, color: Colors.black),
-                      onPressed: () {
-                        showReportMenu(context, currentUser!.uid, widget.chatRoomId);
+                    child: PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: (value) async {
+                        try {
+                          if (value == 'report') {
+                            // 使用現有的檢舉流程（選取被檢舉對象與原因）
+                            await showReportMenu(context, currentUser!.uid, widget.chatRoomId);
+                          }
+                        } catch (e) {
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('操作失敗：$e')));
+                        }
                       },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(value: 'report', child: Text('檢舉')),
+                      ],
                     ),
-                  )               
+                  ),
                 ],
               ),
             ),
