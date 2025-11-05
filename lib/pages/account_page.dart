@@ -42,7 +42,7 @@ class _AccountPageState extends State<AccountPage> {
   bool? matchSameDepartment;
   Set<String> matchGender = {};
   Set<String> matchSchools = {};
-  String height = '';
+  // String height = '';
 
   @override
   void initState() {
@@ -83,7 +83,7 @@ class _AccountPageState extends State<AccountPage> {
       matchSameDepartment = data['matchSameDepartment'];
       matchGender = Set<String>.from(data['matchGender'] ?? []);
       matchSchools = Set<String>.from(data['matchSchools'] ?? []);
-      height = data['height'] ?? '';
+      // height = data['height'] ?? '';
     }
 
     setState(() {
@@ -694,7 +694,7 @@ class _AccountPageState extends State<AccountPage> {
                         gender: gender,
                         matchGender: matchGender,
                         matchSchools: matchSchools,
-                        height: height,
+                        // height: height,
                         photoUrl: photoURL,
                         onSave: (data) async {
                           // 寫回 Firebase
@@ -713,7 +713,7 @@ class _AccountPageState extends State<AccountPage> {
                             gender = data['gender'] ?? '';
                             matchGender = Set<String>.from(data['matchGender'] ?? []);
                             matchSchools = Set<String>.from(data['matchSchools'] ?? []);
-                            height = data['height'] ?? '';
+                            // height = data['height'] ?? '';
                             photoURL = data['photoUrl'];
                             tags = List<String>.from(data['tags'] ?? []);
                             mbti = data['mbti'];  // 更新 mbti
@@ -857,7 +857,7 @@ class SimpleProfileEditPage extends StatefulWidget {
   final String gender;
   final Set<String> matchGender;
   final Set<String> matchSchools;
-  final String height;
+  // final String height;
   final String? photoUrl;
   final ValueChanged<Map<String, dynamic>>? onSave;
 
@@ -878,7 +878,7 @@ class SimpleProfileEditPage extends StatefulWidget {
     required this.gender,
     required this.matchGender,
     required this.matchSchools,
-    required this.height,
+    // required this.height,
     required this.photoUrl,
     this.onSave,
   });
@@ -891,7 +891,7 @@ class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
   late TextEditingController nameController;
   late TextEditingController birthdayController;
   late TextEditingController selfIntroController;
-  late TextEditingController heightController;
+  // late TextEditingController heightController;
   File? _selectedImage;
   bool _isUploadingPhoto = false;
   String? _photoUrl;
@@ -919,7 +919,7 @@ class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
     nameController = TextEditingController(text: widget.name);
     birthdayController = TextEditingController(text: widget.birthday);
     selfIntroController = TextEditingController(text: widget.selfIntro);
-    heightController = TextEditingController(text: widget.height);
+    // heightController = TextEditingController(text: widget.height);
     _photoUrl = widget.photoUrl;
 
     selectedHabits = Set<String>.from(widget.selectedHabits);
@@ -953,7 +953,7 @@ class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
     nameController.dispose();
     birthdayController.dispose();
     selfIntroController.dispose();
-    heightController.dispose();
+    // heightController.dispose();
     super.dispose();
   }
 
@@ -1185,13 +1185,13 @@ class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
               ),
               const SizedBox(height: 16),
 
-              // 身高
-              TextField(
-                controller: heightController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: '身高（公分）'),
-              ),
-              const SizedBox(height: 16),
+              // // 身高
+              // TextField(
+              //   controller: heightController,
+              //   keyboardType: TextInputType.number,
+              //   decoration: const InputDecoration(labelText: '身高（公分）'),
+              // ),
+              // const SizedBox(height: 16),
 
               // 在學狀態
               const Text('在學狀態'),
@@ -1288,7 +1288,7 @@ class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
                     'gender': gender,
                     'matchGender': matchGender.toList(),
                     'matchSchools': matchSchools.toList(),
-                    'height': heightController.text.trim(),
+                    // 'height': heightController.text.trim(),
                     'photoUrl': _photoUrl,
                     'tags': tags,
                   });

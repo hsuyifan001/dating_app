@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'services/fcm_service.dart'; // 新增 import
 import 'package:dating_app/constants/data_constants.dart';
 
 class ProfileSetupPage extends StatefulWidget {
@@ -83,7 +84,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
 
   final nameController = TextEditingController();
   final birthdayController = TextEditingController();
-  final heightController = TextEditingController();
+  // final heightController = TextEditingController();
   
   String? gender;
   Set<String> matchgender = {};
@@ -236,10 +237,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
         showAutoDismissDialog('請輸入生日');
         return;
       }
-      if (heightController.text.trim().isEmpty) {
-        showAutoDismissDialog('請輸入身高');
-        return;
-      }
+      // if (heightController.text.trim().isEmpty) {
+      //   showAutoDismissDialog('請輸入身高');
+      //   return;
+      // }
       if (selectededucationLevels == null) {
         showAutoDismissDialog('請選擇在學狀態');
         return;
@@ -300,7 +301,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
       'mbti': selectedMBTI,
       'zodiac': selectedZodiac,
       'birthday': birthdayController.text.trim(),
-      'height': heightController.text.trim(),
+      // 'height': heightController.text.trim(),
       'educationLevels': selectededucationLevels,
       'department': selectedDepartment,
       'matchSameDepartment': matchSameDepartment,
@@ -314,17 +315,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
     
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set(profileData);
 
+    // 改為：若之前有暫存的 FCM token，完成個人資料後再寫入
     try {
-      final fcmToken = await FirebaseMessaging.instance.getToken();
-      if (fcmToken != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-          {'fcmToken': fcmToken},
-          SetOptions(merge: true), // 使用 merge 避免覆蓋其他欄位
-        );
-        print('FCM 權杖已儲存到 Firestore: $fcmToken');
-      }
+      await FcmService.saveTokenIfUserProfileExists(user.uid);
+      print('嘗試將 pending FCM token 寫入 Firestore');
     } catch (e) {
-      print('儲存 FCM 權杖失敗: $e');
+      print('寫入 pending FCM token 失敗: $e');
     }
 
     // 新增：生成初始配對
@@ -376,7 +372,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
       // 基本文字輸入
       nameController.text = data['name'] ?? '';
       birthdayController.text = data['birthday'] ?? '';
-      heightController.text = data['height'] ?? '';
+      // heightController.text = data['height'] ?? '';
       selfIntroController.text = data['selfIntro'] ?? '';
 
       // 單選
@@ -1015,22 +1011,22 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
           decoration: const InputDecoration(hintText: '請選擇生日'),
         ),
 
-        const SizedBox(height: 24),
-        const Text('身高'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: heightController,
-          textAlign: TextAlign.center,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            hintText: '請輸入你的身高（公分）',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            filled: true,
-            fillColor: Colors.grey[100],
-          ),
-        ),
+        // const SizedBox(height: 24),
+        // const Text('身高'),
+        // const SizedBox(height: 8),
+        // TextField(
+        //   controller: heightController,
+        //   textAlign: TextAlign.center,
+        //   keyboardType: TextInputType.number,
+        //   decoration: InputDecoration(
+        //     hintText: '請輸入你的身高（公分）',
+        //     border: OutlineInputBorder(
+        //       borderRadius: BorderRadius.circular(12),
+        //     ),
+        //     filled: true,
+        //     fillColor: Colors.grey[100],
+        //   ),
+        // ),
 
         const SizedBox(height: 24),
         const Text('在學狀態'),
