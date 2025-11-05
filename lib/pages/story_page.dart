@@ -999,21 +999,59 @@ class _StoryCardState extends State<StoryCard> {
                   ],
                 ),
                 const Spacer(),
-                if (userId == widget.currentUserId)
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_horiz),
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        widget.onEdit(storyId: storyId, existingData: story);
-                      } else if (value == 'delete') {
-                        widget.onDelete(storyId);
+                // 合併為單一三個點選單，依照是否為自己貼文加入編輯/刪除
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) async {
+                    if (value == 'report') {
+                      try {
+                        await FirebaseFirestore.instance.collection('reports').add({
+                          'reporterId': FirebaseAuth.instance.currentUser!.uid,
+                          'reportedUserId': userId,
+                          'storyId': storyId,
+                          'storyPath': 'users/$userId/stories/$storyId',
+                          'storySnapshot': {
+                            'text': text,
+                            'photoUrls': photoUrls,
+                            'timestamp': story['timestamp'],
+                          },
+                          'reason': 'user_reported_from_ui',
+                          'details': '', // 可讓 user 輸入詳細原因
+                          'status': 'pending',
+                          'createdAt': FieldValue.serverTimestamp(),
+                        });
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已送出檢舉，我們將進行審查。')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('檢舉失敗：$e')),
+                          );
+                        }
                       }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('編輯')),
-                      PopupMenuItem(value: 'delete', child: Text('刪除')),
-                    ],
-                  ),
+                    } else if (value == 'edit') {
+                      widget.onEdit(storyId: storyId, existingData: story);
+                    } else if (value == 'delete') {
+                      widget.onDelete(storyId);
+                    }
+                  },
+                  itemBuilder: (context) {
+                    final List<PopupMenuEntry<String>> items = [
+                      const PopupMenuItem(value: 'report', child: Text('檢舉')),
+                    ];
+                    if (userId == widget.currentUserId) {
+                      items.add(const PopupMenuDivider());
+                      items.addAll(const [
+                        PopupMenuItem(value: 'edit', child: Text('編輯')),
+                        PopupMenuItem(value: 'delete', child: Text('刪除')),
+                      ]);
+                    }
+                    return items;
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 8),
