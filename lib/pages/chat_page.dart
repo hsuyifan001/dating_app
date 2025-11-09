@@ -558,7 +558,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     }
   }
 
-  /// 顯示檢舉選單
+  /// 顯示檢舉表單（下拉選擇被檢舉對象、原因，並可上傳多張圖片與文字說明）
   Future<void> showReportMenu(BuildContext context, String currentUserId, String chatRoomId) async {
     try {
       // 取得聊天室資料
@@ -572,7 +572,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         return;
       }
 
-      // 取得成員列表
+      // 取得成員列表（排除自己）
       final members = List<String>.from(chatDoc['members'] ?? []);
       final reportTargets = members.where((id) => id != currentUserId).toList();
 
@@ -596,90 +596,158 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         }
       }
 
-      // 顯示選單
-      showModalBottomSheet(
+      if (usersInfo.isEmpty) {
+        print('無法取得被檢舉使用者資訊');
+        return;
+      }
+
+      // 將表單狀態提升到此作用域，避免系統在鍵盤彈出/收起時重新執行 builder 導致狀態重置
+      String? selectedTargetId = usersInfo.first['id'];
+      String? selectedReason;
+      final TextEditingController descController = TextEditingController();
+      bool isSubmitting = false;
+
+      // 顯示可滾動的表單 bottom sheet（await 後再 dispose controller）
+      await showModalBottomSheet(
         context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
         builder: (context) {
-          return ListView(
-            children: usersInfo.map((user) {
-              return ListTile(
-                title: Text(user['name']!),
-                onTap: () {
-                  Navigator.pop(context); // 關閉 bottom sheet
-                  print('檢舉 ${user['id']} - ${user['name']}');
-                  // TODO: 這邊接你的檢舉邏輯
-                  _showReportReasons(context, currentUserId, user['id']!);
-                },
-              );
-            }).toList(),
-          );
+          return StatefulBuilder(builder: (context, setState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('檢舉使用者', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: selectedTargetId,
+                        items: usersInfo.map((u) => DropdownMenuItem(
+                          value: u['id'],
+                          child: Text(u['name'] ?? '未命名'),
+                        )).toList(),
+                        onChanged: (v) => setState(() => selectedTargetId = v),
+                        decoration: const InputDecoration(border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 12),
+
+                      const Text('檢舉原因', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: selectedReason,
+                        items: const [
+                          DropdownMenuItem(value: 'CSAE', child: Text('兒少安全問題')),
+                          DropdownMenuItem(value: 'Impersonation', child: Text('冒充身分')),
+                          DropdownMenuItem(value: 'Inappropriate Content', child: Text('不當內容')),
+                        ],
+                        onChanged: (v) => setState(() => selectedReason = v),
+                        decoration: const InputDecoration(border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 圖片上傳功能暫時關閉以避免伺服器風險
+                      const SizedBox(height: 12),
+
+                      const Text('說明（選填）', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: descController,
+                        minLines: 2,
+                        maxLines: 6,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: '請描述發生了什麼事（可附上時間/聊天室內容）',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: isSubmitting ? null : () => Navigator.of(context).pop(),
+                            child: const Text('取消'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: isSubmitting ? null : () async {
+                              if (selectedTargetId == null || selectedReason == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('請選擇被檢舉對象與原因')));
+                                return;
+                              }
+                              setState(() => isSubmitting = true);
+                              await _submitReport(
+                                context,
+                                currentUserId,
+                                selectedTargetId!,
+                                selectedReason!,
+                                description: descController.text.trim(),
+                                chatRoomId: chatRoomId,
+                              );
+                              if (mounted) Navigator.of(context).pop();
+                            },
+                            child: const Text('送出檢舉'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          });
         },
       );
+
+  // 不主動 dispose controller（避免在某些情況下因依賴尚未移除而發生 AssertionError）
     } catch (e) {
-      //print('取得聊天室成員或顯示檢舉選單時發生錯誤: $e');
+      // ignore
     }
   }
 
 
-  /// 顯示檢舉原因
-  void _showReportReasons(BuildContext context, String reporterId, String reportedUserId) {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.report, color: Colors.red),
-                title: Text("檢舉兒少安全問題"),
-                onTap: () {
-                  _submitReport(context, reporterId, reportedUserId, "CSAE");
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.person_off, color: Colors.orange),
-                title: Text("冒充身分"),
-                onTap: () {
-                  _submitReport(context, reporterId, reportedUserId, "Impersonation");
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.block, color: Colors.blue),
-                title: Text("不當內容"),
-                onTap: () {
-                  _submitReport(context, reporterId, reportedUserId, "Inappropriate Content");
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  
 
-/// 寫入 Firestore
-Future<void> _submitReport(BuildContext context, String reporterId, String reportedUserId, String reason) async {
+/// 寫入 Firestore（支援 description、多張圖片與 chatRoomId）
+Future<void> _submitReport(
+  BuildContext context,
+  String reporterId,
+  String reportedUserId,
+  String reason, {
+  String? description,
+  String? chatRoomId,
+}) async {
   try {
-    await FirebaseFirestore.instance.collection("reports").add({
-      "reporterId": reporterId,
-      "reportedUserId": reportedUserId,
-      "reason": reason,
-      "createdAt": FieldValue.serverTimestamp(),
+    final reportsRef = FirebaseFirestore.instance.collection('reports');
+    final docRef = reportsRef.doc();
+
+    // 先建立 report doc（imageUrls 先空），之後會更新 imageUrls
+    await docRef.set({
+      'reporterId': reporterId,
+      'reportedUserId': reportedUserId,
+      'reason': reason,
+      'description': description ?? '',
+      'chatRoomId': chatRoomId ?? '',
+      'imageUrls': [],
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
-    Navigator.pop(context); // 關閉 bottom sheet
+    // 圖片上傳功能已停用（避免伺服器風險）
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("已送出檢舉")),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已送出檢舉')));
+    }
   } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("檢舉失敗，請稍後再試")),
-    );
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('檢舉失敗，請稍後再試')));
   }
 }
 
