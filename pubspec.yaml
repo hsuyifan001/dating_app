@@ -63,6 +63,9 @@ dependencies:
 
   firebase_remote_config: ^5.5.0
 
+  # Sign in with Apple
+  sign_in_with_apple: ^7.0.1
+
   
 
 dev_dependencies:

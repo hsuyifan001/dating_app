@@ -83,6 +83,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
   int _currentPage = 0;
 
   final nameController = TextEditingController();
+  String? userEmail;
   final birthdayController = TextEditingController();
   // final heightController = TextEditingController();
   
@@ -369,6 +370,8 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
   if (doc.exists) {
     final data = doc.data()!;
     setState(() {
+      // 使用者 email（若有）
+      userEmail = data['email'] ?? user.email;
       // 基本文字輸入
       nameController.text = data['name'] ?? '';
       birthdayController.text = data['birthday'] ?? '';
@@ -729,6 +732,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
           ),
         ),
         const SizedBox(height: 16),
+        /*if (userEmail != null) ...[
+          Text('電子郵件：$userEmail', style: TextStyle(color: Colors.grey[700])),
+          const SizedBox(height: 8),
+        ],*/
         Text(
           '2. 選擇尼的生理性別',
           style: TextStyle(

@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart'; // ← 新增這行
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/fcm_service.dart';
 import 'package:flutter/services.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 // 'timeago' 未使用，保留註解以便將來需要時再啟用
 // import 'package:timeago/timeago.dart' as timeago;
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -96,6 +97,7 @@ class WelcomePage extends StatefulWidget {
 
 class _WelcomePageState extends State<WelcomePage> {
   bool _showDemoLogin = false;
+  bool _showAppleLogin = false;
   bool _loadingConfig = true;
 
   @override
@@ -113,8 +115,10 @@ class _WelcomePageState extends State<WelcomePage> {
       ));
       await remoteConfig.fetchAndActivate();
       final show = remoteConfig.getBool('showDemoLogin');
+      final showApple = remoteConfig.getBool('showAppleLogin');
       setState(() {
         _showDemoLogin = show;
+        _showAppleLogin = showApple;
         _loadingConfig = false;
       });
     } catch (e) {
@@ -266,6 +270,20 @@ class _WelcomePageState extends State<WelcomePage> {
                     ),
                   ),
 
+                  if (!_loadingConfig && _showAppleLogin) ...[
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => _signInWithApple(context),
+                      icon: const Icon(Icons.apple),
+                      label: const Text('使用 Apple 帳號登入'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                    ),
+                  ],
+
                   if (_loadingConfig) const SizedBox(height: 12),
 
                   if (!_loadingConfig && _showDemoLogin) ...[
@@ -305,7 +323,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
       // 若靜默登入失敗，才開啟帳號選擇流程
       googleUser = await googleSignIn.signIn();
     }
-    if (googleUser == null) return; // 使用者取消登入
+    if (googleUser == null) return; // 使用者取消登入 
 
     final String email = googleUser.email;
     
@@ -459,4 +477,155 @@ Future<void> _postSignInNavigation(BuildContext context, User user) async {
       );
     }
   }
+}
+
+Future<void> _signInWithApple(BuildContext context) async {
+  try {
+    // 取得 Apple ID credential (含 webAuthenticationOptions)
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+      webAuthenticationOptions: WebAuthenticationOptions(
+        clientId: 'com.yangqingjiao.signin',
+        redirectUri: Uri.parse(
+          'https://datingappregister.firebaseapp.com/__/auth/handler',
+        ),
+      ),
+    );
+
+    final oauthCredential = OAuthProvider("apple.com").credential(
+      idToken: credential.identityToken,
+      accessToken: credential.authorizationCode,
+    );
+
+    final userCredential = await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+    final user = userCredential.user;
+    if (user == null) throw Exception('Apple 登入失敗: Firebase user 為空');
+
+    // 檢查是否需要補 email / school
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final docData = userDoc.data();
+    final hasEmailInDoc = docData != null && (docData['email'] != null && (docData['email'] as String).isNotEmpty);
+    final hasSchoolInDoc = docData != null && (docData['school'] != null && (docData['school'] as String).isNotEmpty);
+
+    final currentEmail = user.email;
+
+    if (hasEmailInDoc && hasSchoolInDoc) {
+      // 直接導向
+      if (context.mounted) await _postSignInNavigation(context, user);
+      return;
+    }
+
+    // 若 FirebaseAuth 的 user 沒有 email 或 Firestore 沒有 email 欄位，請求使用者輸入 email 並驗證
+    if (currentEmail == null || currentEmail.isEmpty || !hasEmailInDoc) {
+      final success = await _promptEmailAndSendVerification(context, user);
+      if (!success) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email 驗證未完成，無法繼續')));
+        }
+        return;
+      }
+    }
+
+    // 最後再檢查 Firestore 並導向
+    if (context.mounted) await _postSignInNavigation(context, user);
+
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Apple 登入失敗：$e')));
+    }
+  }
+}
+
+Future<bool> _promptEmailAndSendVerification(BuildContext context, User user) async {
+  final emailController = TextEditingController(text: user.email ?? '');
+  bool completed = false;
+
+  // 1) 要求輸入 email
+  final got = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text('請輸入電子郵件以完成驗證'),
+        content: TextField(
+          controller: emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(hintText: '請輸入你的電子郵件'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
+          ElevatedButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('送出')),
+        ],
+      );
+    },
+  );
+
+  if (got != true) return false;
+
+  final inputEmail = emailController.text.trim();
+  if (inputEmail.isEmpty) return false;
+
+  // 僅允許特定學校信箱
+  if (!(inputEmail.endsWith('@nycu.edu.tw') || inputEmail.endsWith('@nthu.edu.tw'))) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('僅允許 nycu.edu.tw 或 nthu.edu.tw 學校信箱')),
+      );
+    }
+    return false;
+  }
+
+  try {
+    // 更新 FirebaseAuth 的 email
+    await user.updateEmail(inputEmail);
+    // 寄送驗證信（連結）
+    await user.sendEmailVerification();
+
+    // 顯示等待驗證的提示並讓使用者按按鈕確認
+    final verified = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('已寄出驗證信'),
+            content: const Text('請到你的信箱點選驗證連結，完成後按下「我已驗證」以繼續。'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
+              ElevatedButton(onPressed: () async {
+                await user.reload();
+                final refreshed = FirebaseAuth.instance.currentUser;
+                final ok = refreshed?.emailVerified ?? false;
+                Navigator.of(dialogContext).pop(ok);
+              }, child: const Text('我已驗證')),
+            ],
+          );
+        });
+      },
+    );
+
+    if (verified == true) {
+      // 寫入 Firestore: email 與 school
+      String school = '其他';
+      if (inputEmail.endsWith('@g.nycu.edu.tw') || inputEmail.endsWith('@nycu.edu.tw')) {
+        school = 'NYCU';
+      } else if (inputEmail.endsWith('@gapp.nthu.edu.tw') || inputEmail.endsWith('@nthu.edu.tw')) {
+        school = 'NTHU';
+      }
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'email': inputEmail,
+        'school': school,
+      }, SetOptions(merge: true));
+      completed = true;
+    } else {
+      completed = false;
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('寄送驗證信或更新 email 失敗：$e')));
+    }
+    completed = false;
+  }
+
+  return completed;
 }
