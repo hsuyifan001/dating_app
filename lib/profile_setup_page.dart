@@ -12,6 +12,7 @@ import 'package:dropdown_search/dropdown_search.dart';
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/fcm_service.dart'; // 新增 import
+import 'email_verification_page.dart';
 import 'package:dating_app/constants/data_constants.dart';
 
 class ProfileSetupPage extends StatefulWidget {
@@ -404,8 +405,43 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
   @override
   void initState() {
     super.initState();
+    // 先載入已存在的資料
     _loadUserData();
+    // 在畫面載入後檢查是否需要補齊 email（處理 Apple Relay 或中斷流程）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndHandleEmail();
+    });
   }
+
+  // 檢查並處理 Email 補齊與驗證流程（若需要）
+  Future<void> _checkAndHandleEmail() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // 直接使用 Authentication 中的 email 檢查學校信箱結尾（更可靠且快速）
+      final currentEmail = user.email ?? '';
+      final isAppleRelayEmail = currentEmail.endsWith('@privaterelay.appleid.com');
+      final hasValidAuthEmail = currentEmail.endsWith('@nycu.edu.tw') || currentEmail.endsWith('@nthu.edu.tw');
+
+      // 如果 Auth 的 email 不是合法學校信箱（或是 Relay/空），則啟動補齊流程
+      if (!hasValidAuthEmail || currentEmail.isEmpty || isAppleRelayEmail) {
+        // 推出專頁處理驗證，回傳 true 表示完成並已寫入 Firestore
+        final result = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(builder: (_) => EmailVerificationPage(user: user)),
+        );
+        if (result != true) {
+          // 使用者取消或驗證失敗 → 強制登出並結束
+          await FirebaseAuth.instance.signOut();
+          return;
+        }
+      }
+    } catch (e) {
+      print('檢查/補齊 email 時發生錯誤: $e');
+    }
+  }
+
+  // The email verification flow was moved to a full page (`EmailVerificationPage`).
   @override
   void dispose() {
     _pageController.dispose();
