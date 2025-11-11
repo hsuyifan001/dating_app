@@ -27,20 +27,14 @@ void main() async { // 記得awit要配上async
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await setupFcm();
 
+  // ...existing code...
   await FirebaseAppCheck.instance.activate(
-    // For web applications, use reCAPTCHA v3. You'll need to replace 'recaptcha-v3-site-key'
-    // with your actual reCAPTCHA v3 site key obtained from the Google reCAPTCHA console.
+    // 開發時使用 debug provider，或改成 AppleProvider.debug / AndroidProvider.debug
     webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
-
-    // For Android, Play Integrity Provider is the recommended default.
-    // During development, you might use AndroidProvider.debug for easier testing,
-    // but remember to switch to Play Integrity for production.
     androidProvider: AndroidProvider.debug,
-
-    // For Apple platforms (iOS/macOS), App Attest is the recommended default for devices.
-    // For simulators or specific testing, you might use AppleProvider.debug or Device Check.
-    appleProvider: AppleProvider.appAttest, // Or AppleProvider.debug, AppleProvider.deviceCheck
+    appleProvider: AppleProvider.debug,
   );
+// ...existing code...
   runApp(const MyApp()); //MyApp = 你的APP名稱
 }
 
@@ -328,7 +322,7 @@ Future<void> _signInWithGoogle(BuildContext context) async {
     final String email = googleUser.email;
     
     // 登入前先檢查信箱格式
-    if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw') && email != 'qq171846@gmail.com' && email != 'yugapad02@gmail.com') {
+    if (!email.endsWith('@nycu.edu.tw') && !email.endsWith('@nthu.edu.tw') && email != 'qq171846@gmail.com') {
       await googleSignIn.signOut();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -456,7 +450,7 @@ Future<void> _postSignInNavigation(BuildContext context, User user) async {
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
     if (context.mounted) {
-      if (!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('name')) {
+      if (!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('e')) {
         // 第一次登入 → 導向學校選擇頁面
         Navigator.pushReplacement(
           context,
@@ -522,6 +516,7 @@ Future<void> _signInWithApple(BuildContext context) async {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email 驗證未完成，無法繼續')));
         }
+        await FirebaseAuth.instance.signOut(); // 💡 確保加入這行
         return;
       }
     }
@@ -530,6 +525,8 @@ Future<void> _signInWithApple(BuildContext context) async {
     if (context.mounted) await _postSignInNavigation(context, user);
 
   } catch (e) {
+    // ⚠️ 調整點 1: 登入失敗/出錯時，強制登出
+    await FirebaseAuth.instance.signOut();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Apple 登入失敗：$e')));
     }
@@ -575,13 +572,19 @@ Future<bool> _promptEmailAndSendVerification(BuildContext context, User user) as
     return false;
   }
 
+// 調整點 2: 處理更新 email 和寄送驗證信的邏輯
   try {
-    // 更新 FirebaseAuth 的 email
-    await user.updateEmail(inputEmail);
-    // 寄送驗證信（連結）
-    await user.sendEmailVerification();
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw FirebaseAuthException(code: 'no-current-user', message: '找不到目前使用者，請重新登入後再試。');
+    }
 
-    // 顯示等待驗證的提示並讓使用者按按鈕確認
+    // 嘗試更新 email
+    await currentUser.updateEmail(inputEmail);
+    // 嘗試寄送驗證信
+    await currentUser.sendEmailVerification();
+    
+    // 如果成功寄送，則顯示等待驗證的提示
     final verified = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -589,11 +592,23 @@ Future<bool> _promptEmailAndSendVerification(BuildContext context, User user) as
         return StatefulBuilder(builder: (context, setState) {
           return AlertDialog(
             title: const Text('已寄出驗證信'),
-            content: const Text('請到你的信箱點選驗證連結，完成後按下「我已驗證」以繼續。'),
+            content: const Column( // ⚠️ 改變：將內容改為 Column
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('請到你的信箱點選驗證連結，完成後按下「我已驗證」以繼續。'),
+                SizedBox(height: 8),
+                // 🔔 提醒使用者檢查垃圾郵件
+                Text(
+                  '💡 貼心提醒：若未收到信件，請檢查您的「垃圾郵件」或「廣告信」資料夾！', 
+                  style: TextStyle(color: Colors.red, fontSize: 13),
+                ),
+              ],
+            ),
             actions: [
               TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
               ElevatedButton(onPressed: () async {
-                await user.reload();
+                await currentUser.reload();
                 final refreshed = FirebaseAuth.instance.currentUser;
                 final ok = refreshed?.emailVerified ?? false;
                 Navigator.of(dialogContext).pop(ok);
@@ -605,22 +620,57 @@ Future<bool> _promptEmailAndSendVerification(BuildContext context, User user) as
     );
 
     if (verified == true) {
-      // 寫入 Firestore: email 與 school
+      // 寫入 Firestore: email 與 school (邏輯不變)
       String school = '其他';
       if (inputEmail.endsWith('@g.nycu.edu.tw') || inputEmail.endsWith('@nycu.edu.tw')) {
         school = 'NYCU';
       } else if (inputEmail.endsWith('@gapp.nthu.edu.tw') || inputEmail.endsWith('@nthu.edu.tw')) {
         school = 'NTHU';
       }
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).set({
         'email': inputEmail,
         'school': school,
       }, SetOptions(merge: true));
       completed = true;
     } else {
+      // 如果用戶按了「取消」或「我已驗證」但驗證失敗
       completed = false;
     }
-  } catch (e) {
+    
+  } on FirebaseAuthException catch (e) {
+    print('FirebaseAuthException in updateEmail/sendVerification: ${e.code} - ${e.message}');
+    
+    if (e.code == 'requires-recent-login') {
+      // 顯示需要重新登入的提示
+      if (context.mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (dctx) => AlertDialog(
+            title: const Text('需要重新驗證'),
+            content: const Text('為安全性考量，更新 Email 需要重新登入。請重新登入後再試。'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('確定')),
+            ],
+          ),
+        );
+      }
+      // 在此處自動登出，讓 AuthGate 導回 WelcomePage
+      await FirebaseAuth.instance.signOut();
+      completed = false; // 設置為 false，將會讓 _signInWithApple 退出
+      
+    } else {
+      // 其他錯誤（如 Email 格式不正確、已存在等）
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('寄送驗證信或更新 email 失敗（${e.code}）：${e.message ?? e}')),
+        );
+      }
+      completed = false;
+    }
+    
+  } catch (e, st) {
+    // 非 FirebaseAuthException 錯誤處理
+    print('非 FirebaseAuthException 錯誤: $e\n$st');
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('寄送驗證信或更新 email 失敗：$e')));
     }
