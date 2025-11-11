@@ -450,7 +450,7 @@ Future<void> _postSignInNavigation(BuildContext context, User user) async {
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
     if (context.mounted) {
-      if (!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('e')) {
+      if (!userDoc.exists || !(userDoc.data() as Map<String, dynamic>).containsKey('name')) {
         // 第一次登入 → 導向學校選擇頁面
         Navigator.pushReplacement(
           context,
