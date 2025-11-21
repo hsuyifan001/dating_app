@@ -53,12 +53,19 @@ class _ChatPageState extends State<ChatPage> {
         .limit(_limit);
 
     _subscription = query.snapshots().listen((snapshot) {
-      final latestDocs = snapshot.docs;
-
-      if (_chatDocs.isEmpty) {
-        _chatDocs.addAll(latestDocs);
-      } else {
-        for (var doc in latestDocs) {
+      // 使用 docChanges 處理新增/修改/移除，確保離開群組時會移除列表中的聊天室
+      for (final change in snapshot.docChanges) {
+        final doc = change.doc;
+        if (change.type == DocumentChangeType.removed) {
+          _chatDocs.removeWhere((d) => d.id == doc.id);
+        } else if (change.type == DocumentChangeType.modified) {
+          final index = _chatDocs.indexWhere((c) => c.id == doc.id);
+          if (index >= 0) {
+            _chatDocs[index] = doc;
+          } else {
+            _chatDocs.insert(0, doc);
+          }
+        } else if (change.type == DocumentChangeType.added) {
           final index = _chatDocs.indexWhere((c) => c.id == doc.id);
           if (index >= 0) {
             _chatDocs[index] = doc;
@@ -69,11 +76,7 @@ class _ChatPageState extends State<ChatPage> {
       }
 
       // 判斷是否還有更多資料
-      if (latestDocs.length < _limit) {
-        _hasMore = false;  // **這裡很重要**
-      } else {
-        _hasMore = true;
-      }
+      _hasMore = (snapshot.docs.length >= _limit);
 
       _chatDocs.sort((a, b) {
         final aTime = (a.data() as Map<String, dynamic>)['lastMessageTime'] as Timestamp?;
@@ -348,13 +351,38 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final TextEditingController messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Map<String, dynamic> _displayPhotos = {}; // 🆕 新增一個 map 來存頭貼
-
+  bool _isBlocked = false; // 聊天室是否被封鎖
+  String _chatType = '';
+  StreamSubscription<DocumentSnapshot>? _chatDocSub;
   List<Map<String, dynamic>> _localTempMessages = [];
 
   @override
   void initState() {
     super.initState();
     _loadChatInfo();
+    // 監聽聊天室 doc 以即時更新 displayPhotos、封鎖狀態與 type
+    _chatDocSub = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatRoomId)
+        .snapshots()
+        .listen((doc) {
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>? ?? {};
+        setState(() {
+          _displayPhotos = (data['displayPhotos'] as Map<String, dynamic>?) ?? _displayPhotos;
+          _isBlocked = data['block'] == true;
+          _chatType = data['type'] ?? '';
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatDocSub?.cancel();
+    _scrollController.dispose();
+    messageController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadChatInfo() async {
@@ -404,6 +432,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     messageController.clear();
     FocusScope.of(context).unfocus();
     if (text.isEmpty) return;
+
+    // 若聊天室被封鎖，阻止發送
+    if (_isBlocked) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('此聊天室已被封鎖，無法發送訊息')));
+      return;
+    }
 
     try {
       // 發送訊息
@@ -493,6 +527,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   }
 
   Future<void> _uploadAndSendImage(String chatRoomId, File imageFile) async {
+    // 若聊天室被封鎖，阻止上傳圖片
+    if (_isBlocked) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('此聊天室已被封鎖，無法上傳圖片')));
+      return;
+    }
     final tempId = DateTime.now().millisecondsSinceEpoch.toString();
     _addTempImageMessage(imageFile);
 
@@ -555,6 +594,95 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       //   SnackBar(content: Text('圖片上傳失敗: $e')),
       // );
       _removeTempImageMessage(tempId);
+    }
+  }
+
+  // 將另一個使用者在 users/{userId} 底下的 matches <-> blocked 移動
+  Future<void> _moveBetweenCollections(String userId, String otherId, {required bool toBlocked}) async {
+    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+    final matchesRef = userRef.collection('matches').doc(otherId);
+    final blockedRef = userRef.collection('blocked').doc(otherId);
+
+    if (toBlocked) {
+      final matchDoc = await matchesRef.get();
+      if (matchDoc.exists) {
+        final data = matchDoc.data();
+        await blockedRef.set(data ?? {'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+        await matchesRef.delete();
+      } else {
+        await blockedRef.set({'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+      }
+    } else {
+      final blockedDoc = await blockedRef.get();
+      if (blockedDoc.exists) {
+        final data = blockedDoc.data();
+        await matchesRef.set(data ?? {'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+        await blockedRef.delete();
+      } else {
+        await matchesRef.set({'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+      }
+    }
+  }
+
+  // 切換封鎖狀態（針對 type == 'match' 的聊天室）
+  Future<void> _toggleBlock(bool block) async {
+    try {
+      final chatRef = FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId);
+      final chatDoc = await chatRef.get();
+      if (!chatDoc.exists) return;
+      final data = chatDoc.data() as Map<String, dynamic>? ?? {};
+      final members = List<String>.from(data['members'] ?? []);
+
+      // 更新 chat doc 的 block 布林值
+      await chatRef.update({'block': block});
+
+      // 對每個成員，將對方從 matches 移到 blocked（或相反）
+      for (final userId in members) {
+        final otherId = members.firstWhere((id) => id != userId, orElse: () => '');
+        if (otherId.isEmpty) continue;
+        await _moveBetweenCollections(userId, otherId, toBlocked: block);
+      }
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(block ? '已封鎖對方' : '已解除封鎖')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('操作失敗：$e')));
+    }
+  }
+
+  // 退出群組（只針對 type == 'activity'）
+  Future<void> _leaveGroup() async {
+    try {
+      final chatRef = FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId);
+      final chatDocSnap = await chatRef.get();
+      if (!chatDocSnap.exists) return;
+      final data = chatDocSnap.data() as Map<String, dynamic>? ?? {};
+      final members = List<String>.from(data['members'] ?? []);
+
+      // 移除當前使用者
+      final updatedMembers = members.where((id) => id != currentUser!.uid).toList();
+
+      // 更新 displayPhotos map
+      final displayPhotos = Map<String, dynamic>.from(data['displayPhotos'] ?? {});
+      displayPhotos.remove(currentUser!.uid);
+
+      if (updatedMembers.isEmpty) {
+        // 若無其他成員，刪除整個聊天室
+        await chatRef.delete();
+      } else {
+        await chatRef.update({
+          'members': updatedMembers,
+          'displayPhotos': displayPhotos,
+        });
+      }
+
+      if (mounted) {
+        // 重新載入聊天室資料以更新目前聊天室資訊
+        await _loadChatInfo();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已成功退出群組')));
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('退出群組失敗：$e')));
     }
   }
 
@@ -840,16 +968,67 @@ Future<void> _submitReport(
                       onSelected: (value) async {
                         try {
                           if (value == 'report') {
-                            // 使用現有的檢舉流程（選取被檢舉對象與原因）
                             await showReportMenu(context, currentUser!.uid, widget.chatRoomId);
+                          } else if (value == 'block') {
+                            // 確認封鎖
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('封鎖使用者'),
+                                content: const Text('封鎖後將無法在此聊天室發送訊息，並會把對方移到封鎖名單。確定要封鎖嗎？'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('取消')),
+                                  TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('確定')),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) await _toggleBlock(true);
+                          } else if (value == 'unblock') {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('解除封鎖'),
+                                content: const Text('解除封鎖後會將對方移回配對列表，並可以在聊天室發送訊息。確定要解除封鎖嗎？'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('取消')),
+                                  TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('確定')),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true) await _toggleBlock(false);
+                            } else if (value == 'leave') {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('退出群組'),
+                                  content: const Text('你確定要退出此群組嗎？退出後你將不會收到此群組訊息。'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('取消')),
+                                    TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('確定')),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) await _leaveGroup();
                           }
                         } catch (e) {
                           if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('操作失敗：$e')));
                         }
                       },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'report', child: Text('檢舉')),
-                      ],
+                      itemBuilder: (context) {
+                        final items = <PopupMenuEntry<String>>[];
+                        items.add(const PopupMenuItem(value: 'report', child: Text('檢舉')));
+                        if (_chatType == 'match') {
+                          if (_isBlocked) {
+                            items.add(const PopupMenuItem(value: 'unblock', child: Text('解除封鎖')));
+                          } else {
+                            items.add(const PopupMenuItem(value: 'block', child: Text('封鎖使用者')));
+                          }
+                        }
+                        if (_chatType == 'activity') {
+                          items.add(const PopupMenuItem(value: 'leave', child: Text('退出群組')));
+                        }
+                        return items;
+                      },
                     ),
                   ),
                 ],

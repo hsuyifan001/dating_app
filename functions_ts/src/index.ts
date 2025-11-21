@@ -57,7 +57,7 @@ export const dailyMatchUpdate = onSchedule(
       const userPromises = usersSnapshot.docs.map(async (userDoc) => {
         const userId = userDoc.id;
         const userData = userDoc.data();
-        let leftMatches = 25;
+        let leftMatches = 10;
         const dailyMatchIds = new Set<string>();
         let existingUsers: admin.firestore.DocumentSnapshot[] = []; // 已儲存的用戶
 
