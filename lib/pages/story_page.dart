@@ -24,6 +24,8 @@ class _StoryPageState extends State<StoryPage> {
   List<String> matchedUserIds = [];
   List<Map<String, dynamic>> allStories = [];
   bool hasStories = false;
+  // 隱藏集合（本地快取）
+  Set<String> _hiddenStories = {};
 
   Map<String, Map<String, dynamic>> userInfoCache = {}; // 🔹 預先緩存使用者資料
   Map<String, bool> _updatingLikes = {}; // storyId => 是否正在更新
@@ -37,7 +39,7 @@ class _StoryPageState extends State<StoryPage> {
   @override
   void initState() {
     super.initState();
-    _loadMatchedUsers();
+    _initAndLoad();
     //** 監聽滑動，自動分頁
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -45,6 +47,25 @@ class _StoryPageState extends State<StoryPage> {
         if (!isLoadingMore) _loadStories(loadMore: true);
       }
     }); //**
+  }
+
+  Future<void> _initAndLoad() async {
+    await _loadHiddenAndBlocked();
+    await _loadMatchedUsers();
+  }
+
+  Future<void> _loadHiddenAndBlocked() async {
+    try {
+      final me = currentUser.uid;
+      final hiddenSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(me)
+          .collection('hiddenStories')
+          .get();
+      _hiddenStories = hiddenSnap.docs.map((d) => d.id).toSet();
+    } catch (e) {
+      // ignore preload errors
+    }
   }
 
   Future<void> _loadMatchedUsers() async {
@@ -104,6 +125,13 @@ class _StoryPageState extends State<StoryPage> {
         }
       }
     }
+
+    // 過濾被隱藏的 stories（封鎖使用者已從 `matches` 移除，因此不需再次過濾）
+    tempStories = tempStories.where((s) {
+      final sid = s['storyId'] as String?;
+      if (sid != null && _hiddenStories.contains(sid)) return false;
+      return true;
+    }).toList();
 
     //** Step3：合併並排序
     final mergedStories = [...allStories, ...tempStories];
@@ -407,6 +435,81 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
 
     // 🔹 非同步更新 Firebase
     _updateLikeInFirebase(userId, storyId, likes);
+  }
+
+  // 隱藏 story：把 storyId 寫入 users/{me}/hiddenStories/{storyId}
+  Future<void> _hideStory(String ownerId, String storyId) async {
+    final me = currentUser.uid;
+    // 立即更新 UI
+    setState(() {
+      _hiddenStories.add(storyId);
+      allStories.removeWhere((s) => s['storyId'] == storyId);
+      hasStories = allStories.isNotEmpty;
+    });
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(me)
+          .collection('hiddenStories')
+          .doc(storyId)
+          .set({'ownerId': ownerId, 'hiddenAt': FieldValue.serverTimestamp()});
+    } catch (e) {
+      // 寫入失敗可以選擇回滾或通知，這裡暫不回滾
+    }
+  }
+
+  // 將 userId 從 matches 移到 blocked（雙邊），並將兩人之間的 chat 設為 block = true
+  Future<void> _blockUser(String targetId) async {
+    final me = currentUser.uid;
+    if (targetId == me) return;
+
+    setState(() {
+      // 只從 UI 上移除該使用者的 stories（不保留客戶端的 blocked 快取）
+      allStories.removeWhere((s) => s['userId'] == targetId);
+      hasStories = allStories.isNotEmpty;
+    });
+
+    try {
+      // 1) 單邊：只在自己的 users 子集合中移動 matches -> blocked
+      await _moveBetweenCollections(me, targetId, toBlocked: true);
+
+      // 2) 使用 deterministic chatRoomId (userA_userB) 直接更新 chat doc
+      //    以避免大量查詢：chatRoomId 由兩個 uid 字串排序後以 '_' 連接
+      final chatRoomId = me.compareTo(targetId) < 0 ? '${me}_$targetId' : '${targetId}_$me';
+      final chatRef = FirebaseFirestore.instance.collection('chats').doc(chatRoomId);
+      // 若 chat doc 存在則 update，否則使用 merge 的 set 也可以建立一個帶 block=true 的 doc
+      await chatRef.set({'block': true}, SetOptions(merge: true));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('封鎖失敗：$e')));
+    }
+  }
+
+  // helper: 將另一個使用者在 users/{userId} 底下的 matches <-> blocked 移動
+  Future<void> _moveBetweenCollections(String userId, String otherId, {required bool toBlocked}) async {
+    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+    final matchesRef = userRef.collection('matches').doc(otherId);
+    final blockedRef = userRef.collection('blocked').doc(otherId);
+
+    if (toBlocked) {
+      final matchDoc = await matchesRef.get();
+      if (matchDoc.exists) {
+        final data = matchDoc.data();
+        await blockedRef.set(data ?? {'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+        await matchesRef.delete();
+      } else {
+        await blockedRef.set({'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+      }
+    } else {
+      final blockedDoc = await blockedRef.get();
+      if (blockedDoc.exists) {
+        final data = blockedDoc.data();
+        await matchesRef.set(data ?? {'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+        await blockedRef.delete();
+      } else {
+        await matchesRef.set({'userId': otherId, 'createdAt': FieldValue.serverTimestamp()});
+      }
+    }
   }
 
 
@@ -1036,6 +1139,24 @@ class _StoryCardState extends State<StoryCard> {
                       widget.onEdit(storyId: storyId, existingData: story);
                     } else if (value == 'delete') {
                       widget.onDelete(storyId);
+                    } else if (value == 'hide') {
+                      // 隱藏此貼文
+                      await (context.findAncestorStateOfType<_StoryPageState>()?._hideStory(userId, storyId));
+                    } else if (value == 'block') {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('封鎖使用者'),
+                          content: const Text('封鎖後會將對方移到封鎖名單，並將你們的聊天室設為封鎖。確定要封鎖嗎？'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('取消')),
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('確定')),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        await (context.findAncestorStateOfType<_StoryPageState>()?._blockUser(userId));
+                      }
                     }
                   },
                   itemBuilder: (context) {
@@ -1047,6 +1168,14 @@ class _StoryCardState extends State<StoryCard> {
                       items.addAll(const [
                         PopupMenuItem(value: 'edit', child: Text('編輯')),
                         PopupMenuItem(value: 'delete', child: Text('刪除')),
+                      ]);
+                    }
+                    // 若不是自己的貼文，提供隱藏與封鎖選項
+                    if (userId != widget.currentUserId) {
+                      items.add(const PopupMenuDivider());
+                      items.addAll(const [
+                        PopupMenuItem(value: 'hide', child: Text('隱藏貼文')),
+                        PopupMenuItem(value: 'block', child: Text('封鎖使用者')),
                       ]);
                     }
                     return items;

@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import '../main.dart';
+import 'package:dating_app/pages/hidden_stories_page.dart';
 import 'dart:io';
 import 'package:dating_app/constants/data_constants.dart';
 
@@ -420,13 +421,28 @@ class _AccountPageState extends State<AccountPage> {
             ),
           ),
         ),
-        Expanded(
-          flex: 2,
-          child: IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.black),
-            onPressed: () {
-              deleteUserAccount(context);
-            },
+        Flexible(
+          flex: 1,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.black),
+              onSelected: (value) async {
+                if (value == 'hidden') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HiddenStoriesPage()),
+                  );
+                } else if (value == 'delete') {
+                  // reuse existing delete flow which includes confirmation
+                  deleteUserAccount(context);
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'hidden', child: Text('查看已隱藏的動態')),
+                PopupMenuItem(value: 'delete', child: Text('刪除帳號')),
+              ],
+            ),
           ),
         ),
       ],
