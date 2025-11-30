@@ -12,6 +12,7 @@ import 'dart:async';
 // import 'package:path_provider/path_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dating_app/utils/notification_util.dart';
+import 'package:dating_app/pages/profile_view_page.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -375,6 +376,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         });
       }
     });
+  }
+
+  String _getOtherUserId() {
+    try {
+      final keys = _displayPhotos.keys.toList();
+      return keys.firstWhere((k) => k != currentUser!.uid, orElse: () => '');
+    } catch (e) {
+      return '';
+    }
   }
 
   @override
@@ -916,18 +926,35 @@ Future<void> _submitReport(
                   ),
                   Expanded(
                     flex: 3,
-                    child: SizedBox(
-                      width: 44,  // 直徑=radius*2
-                      height: 44,
-                      child: CircleAvatar(
-                        radius: 22, // 等於直徑 44 / 2
-                        backgroundImage: widget.avatarUrl.isEmpty
-                            ? null
-                            : NetworkImage(widget.avatarUrl),
-                        child: widget.avatarUrl.isEmpty
-                            ? const Icon(Icons.person, color: Colors.white)
-                            : null,
-                      )
+                    child: GestureDetector(
+                      onTap: () {
+                        if (_chatType != 'match') {
+                          //if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('此聊天室不是配對聊天室')));
+                          return;
+                        }
+                        final otherId = _getOtherUserId();
+                        if (otherId.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileViewPage(userId: otherId)),
+                          );
+                        } else {
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('無法取得使用者資料')));
+                        }
+                      },
+                      child: SizedBox(
+                        width: 44,  // 直徑=radius*2
+                        height: 44,
+                        child: CircleAvatar(
+                          radius: 22, // 等於直徑 44 / 2
+                          backgroundImage: widget.avatarUrl.isEmpty
+                              ? null
+                              : NetworkImage(widget.avatarUrl),
+                          child: widget.avatarUrl.isEmpty
+                              ? const Icon(Icons.person, color: Colors.white)
+                              : null,
+                        )
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),

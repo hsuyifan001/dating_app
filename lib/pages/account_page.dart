@@ -265,11 +265,11 @@ class _AccountPageState extends State<AccountPage> {
                   const Text('編輯個人資料',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  TextField(
+                  /*TextField(
                     controller: nameController,
                     decoration: const InputDecoration(labelText: '名稱'),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 16),*/
                   TextField(
                     controller: bioController,
                     decoration: const InputDecoration(labelText: '簡介'),
