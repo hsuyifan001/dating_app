@@ -73,3 +73,10 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // add the Firebase SDK for Google Analytics
+    implementation("com.google.firebase:firebase-analytics:17.4.1")
+    // add SDKs for any other desired Firebase products
+    // https://firebase.google.com/docs/android/setup#available-libraries
+}

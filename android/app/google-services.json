@@ -79,10 +79,10 @@
               "client_type": 3
             },
             {
-              "client_id": "137173225324-d1ejc2c39771a82ep1t1bnnjmcnvvkft.apps.googleusercontent.com",
+              "client_id": "137173225324-4oj5i5mecjqm19jim06v0gpv9f9gvdl7.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.datingApp"
+                "bundle_id": "com.yandqingjiao.datingapp"
               }
             }
           ]
@@ -97,6 +97,62 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "137173225324-133upgsq0etrsgshu4rlirsbfelbco9j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "7b83b4bfa46419ef54c7408db316c083244a0e24"
+          }
+        },
+        {
+          "client_id": "137173225324-1he9ml1s2o4ba02bi6trcg12ubn7fvla.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "5adc5fec9df94a36a69c834c70aaf9c60c71c49b"
+          }
+        },
+        {
+          "client_id": "137173225324-b1590j6ms580tklho89pk1ckblfq4c69.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "90f50d218aa8da8cc9c77b1b416ff042ec06cd48"
+          }
+        },
+        {
+          "client_id": "137173225324-c6psu97tv54l6b2471s3fhk3gbt98mjd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "227f0bd7a67439dc531d77de565f05957cc43fde"
+          }
+        },
+        {
+          "client_id": "137173225324-dofoabp4v7ldqs6k1j2icjimrhcg8dfc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "53ac39462f6e20794e1fc01f3c13a72270368b1d"
+          }
+        },
+        {
+          "client_id": "137173225324-jif7a77egan97oah8o097pd2coonluuk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "1485e1b92835c9bf15cb4cb43a4f6d6a722bf0cd"
+          }
+        },
+        {
+          "client_id": "137173225324-qvolekv0t7flav1tqdbpre8nta6j1slk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "26bb1001c7598d3832b2eab8fabd39bf0bae0214"
+          }
+        },
         {
           "client_id": "137173225324-d8ipo8t3f6f8n43b0h4mg5u01ert12r1.apps.googleusercontent.com",
           "client_type": 3
@@ -115,10 +171,10 @@
               "client_type": 3
             },
             {
-              "client_id": "137173225324-d1ejc2c39771a82ep1t1bnnjmcnvvkft.apps.googleusercontent.com",
+              "client_id": "137173225324-4oj5i5mecjqm19jim06v0gpv9f9gvdl7.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.datingApp"
+                "bundle_id": "com.yandqingjiao.datingapp"
               }
             }
           ]
