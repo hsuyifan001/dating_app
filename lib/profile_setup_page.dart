@@ -44,6 +44,24 @@ class WidthLimitingTextInputFormatter extends TextInputFormatter {
 
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    // Allow IME composing text (important for iOS/Android Chinese input methods).
+    // When the user is still composing (newValue.composing is a non-collapsed range),
+    // we should return newValue to avoid interrupting the IME composition sequence.
+    // Different IMEs behave slightly differently. Some (notably 注音/Ｂopomofo)
+    // may not always expose a non-collapsed composing range in every stage.
+    // To avoid interrupting composition we allow any valid composing range,
+    // and also detect Bopomofo characters directly in the incoming text so that
+    // 注音候選/組字過程不會被格式化器攔截。
+    if (newValue.composing.isValid) {
+      return newValue;
+    }
+    // If the new text contains Bopomofo (Zhuyin) characters, treat it as composing
+    // to avoid blocking Zhuyin input methods that may not set composing ranges
+    // in the same way as other IMEs.
+    final RegExp bopomofo = RegExp(r'[\u3100-\u312F\u31A0-\u31BF]');
+    if (bopomofo.hasMatch(newValue.text)) {
+      return newValue;
+    }
     double totalWidth = _calculateWidth(newValue.text);
     if (totalWidth > maxWidth) {
       // 超過寬度，觸發回調並保持舊值
@@ -63,8 +81,10 @@ class WidthLimitingTextInputFormatter extends TextInputFormatter {
     double totalWidth = 0.0;
     for (var char in text.runes) {
       String charStr = String.fromCharCode(char);
-      if (RegExp(r'[\u4e00-\u9fa5]').hasMatch(charStr)) {
-        totalWidth += chineseCharWidth; // 中文字
+      // Match a broader set of CJK unified ideographs and related ranges so
+      // that Chinese characters from multiple blocks are correctly counted.
+      if (RegExp(r'[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]').hasMatch(charStr)) {
+        totalWidth += chineseCharWidth; // 中文字（含擴充區）
       } else if (RegExp(r'[0-9]').hasMatch(charStr)) {
         totalWidth += numberWidth; // 數字
       } else if (RegExp(r'[a-zA-Z]').hasMatch(charStr)) {
@@ -742,7 +762,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
                   onWidthExceeded: () => showAutoDismissDialog('名字最多5個中文字\n數字、英文視作半個中文字'),
                 ),
                 FilteringTextInputFormatter.allow(
-                  RegExp(r'[a-zA-Z0-9\u4e00-\u9fa5 ]'), // 允許中英文、數字、空格
+                  // 擴大中文字符範圍、注音(Bopomofo)與常用全形符號，避免部分輸入法臨時字元被阻擋
+                  // 新增 \u3100-\u312F 和 \u31A0-\u31BF 為注音區段
+                  RegExp(r'[a-zA-Z0-9\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF\u3100-\u312F\u31A0-\u31BF\u3000-\u303F\uFF00-\uFFEF ]'),
                 ),
                 FilteringTextInputFormatter.deny(RegExp(r'\n')), // 禁止換行
               ],
