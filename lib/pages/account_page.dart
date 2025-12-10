@@ -1020,12 +1020,12 @@ class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
               ),
               const SizedBox(height: 16),
 
-              // 姓名
+              /*// 姓名
               TextField(
                 controller: nameController,
                 decoration: const InputDecoration(labelText: '姓名'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 16),*/
 
               // 性別
               const Text('性別'),
