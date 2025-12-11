@@ -111,6 +111,8 @@ export const dailyMatchUpdate = onSchedule(
         const pushedIds = new Set(pushedSnapshot.docs.map((doc) => doc.id));
 
         // 2. 取得自己的配對條件與 likedTagCount 及 likedHabitCount
+        const currentUserSchool = userData.school || "";
+        const currentUserGender = userData.gender;
         const currentUserDepartment = userData.department || "";
         const matchSameDepartment = userData.matchSameDepartment || false;
         const matchGender = userData.matchGender || [];
@@ -164,8 +166,35 @@ export const dailyMatchUpdate = onSchedule(
             const isPushed = pushedIds.has(doc.id);
             const isSameDepartment = data?.department === currentUserDepartment;
             const isDailyMatched = dailyMatchIds.has(doc.id);
+            const isSameSchool = data?.school === currentUserSchool;
 
-            if (matchSameDepartment === false && isSameDepartment) return false;
+            if (matchSameDepartment === false &&
+                isSameSchool && isSameDepartment) {
+              return false;
+            }
+
+            // 新增：雙向配對檢查
+            // 檢查候選人的 matchGender 是否包含用戶的 gender
+            const candidateMatchGender = data?.matchGender || [];
+            if (!candidateMatchGender.includes(currentUserGender)) {
+              return false;
+            }
+
+            // 檢查候選人的 matchSchools 是否包含用戶的 school
+            const candidateMatchSchools = data?.matchSchools || [];
+            if (!candidateMatchSchools.includes(currentUserSchool)) {
+              return false;
+            }
+
+            // 若候選人 matchSameDepartment 為 false
+            // 確保候選人的 department 不等於用戶的 department
+            const candidateMatchSameDepartment =
+              data?.matchSameDepartment || false;
+            if (candidateMatchSameDepartment === false &&
+                isSameSchool && isSameDepartment) {
+              return false;
+            }
+
             return !isSelf && !isPushed && !isDailyMatched;
           });
         }
@@ -195,24 +224,24 @@ export const dailyMatchUpdate = onSchedule(
         leftMatches = Math.max(0, leftMatches - randomSelection.length);
 
         // 把不符合的人也加入（如果還有剩餘）
-        let excludedUsers: admin.firestore.DocumentSnapshot[] = [];
-        if (leftMatches > 0) {
-          const allUsersSnapshot = await db.collection("users").get();
-          excludedUsers = allUsersSnapshot.docs.filter((doc) => {
-            const isSelf = doc.id === userId;
-            const isPushed = pushedIds.has(doc.id);
-            const isDailyMatched = dailyMatchIds.has(doc.id);
-            const isInPreviousLists = (
-              likedMeUsers.some((d) => d.id === doc.id) ||
-              filteredUsers.some((d) => d.id === doc.id) ||
-              randomSelection.some((d) => d.id === doc.id)
-            );
-            return !isSelf &&
-              !isPushed &&
-              !isDailyMatched &&
-              !isInPreviousLists;
-          }).slice(0, leftMatches);
-        }
+        // let excludedUsers: admin.firestore.DocumentSnapshot[] = [];
+        // if (leftMatches > 0) {
+        //   const allUsersSnapshot = await db.collection("users").get();
+        //   excludedUsers = allUsersSnapshot.docs.filter((doc) => {
+        //     const isSelf = doc.id === userId;
+        //     const isPushed = pushedIds.has(doc.id);
+        //     const isDailyMatched = dailyMatchIds.has(doc.id);
+        //     const isInPreviousLists = (
+        //       likedMeUsers.some((d) => d.id === doc.id) ||
+        //       filteredUsers.some((d) => d.id === doc.id) ||
+        //       randomSelection.some((d) => d.id === doc.id)
+        //     );
+        //     return !isSelf &&
+        //       !isPushed &&
+        //       !isDailyMatched &&
+        //       !isInPreviousLists;
+        //   }).slice(0, leftMatches);
+        // }
 
         // 7. 合併推薦名單（將已儲存的用戶放到最前面）
         const recommendedUsers = [
@@ -220,7 +249,7 @@ export const dailyMatchUpdate = onSchedule(
           ...likedMeUsers,
           ...filteredUsers,
           ...randomSelection,
-          ...excludedUsers,
+          // ...excludedUsers,
         ].slice(0, 25); // 確保總數不超過 25
         const recommendedUserIds = recommendedUsers.map((doc) => doc.id);
 
