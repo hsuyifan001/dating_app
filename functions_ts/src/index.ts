@@ -36,8 +36,9 @@ export const sendNotification = onCall(async (request) => {
 // 每日配對更新 function
 export const dailyMatchUpdate = onSchedule(
   {
-    schedule: "0 5 * * *", // 每天 5:00 觸發 (UTC 時間)
-    timeZone: "Asia/Taipei", // 設定時區為台灣
+    schedule: "0 5 * * *", // 每天 5:00 觸發
+    timeZone: "Asia/Taipei", // 設定時區為台灣,
+    memory: "1GiB",
   },
   async (_event) => {
     const db = admin.firestore();
@@ -57,7 +58,7 @@ export const dailyMatchUpdate = onSchedule(
       const userPromises = usersSnapshot.docs.map(async (userDoc) => {
         const userId = userDoc.id;
         const userData = userDoc.data();
-        let leftMatches = 10;
+        let leftMatches = 25;
         const dailyMatchIds = new Set<string>();
         let existingUsers: admin.firestore.DocumentSnapshot[] = []; // 已儲存的用戶
 
