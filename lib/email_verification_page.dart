@@ -34,7 +34,7 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
 
   bool _isAllowedSchoolEmail(String email) {
     final e = email.trim();
-    return e.endsWith('@nycu.edu.tw') || e.endsWith('@nthu.edu.tw');
+    return e.endsWith('nycu.edu.tw') || e.endsWith('nthu.edu.tw');
   }
 
   Future<void> _sendVerification() async {
@@ -112,9 +112,9 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
 
       final email = _emailController.text.trim();
       String school = '其他';
-      if (email.endsWith('@g.nycu.edu.tw') || email.endsWith('@nycu.edu.tw')) {
+      if (email.endsWith('nycu.edu.tw')) {
         school = 'NYCU';
-      } else if (email.endsWith('@gapp.nthu.edu.tw') || email.endsWith('@nthu.edu.tw')) {
+      } else if ( email.endsWith('nthu.edu.tw')) {
         school = 'NTHU';
       }
 
@@ -167,7 +167,7 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
                                 labelText: '學校電子郵件',
-                                hintText: 'name@nycu.edu.tw 或 name@nthu.edu.tw',
+                                hintText: 'nycu.edu.tw 或 nthu.edu.tw',
                               ),
                             ),
                             const SizedBox(height: 12),

@@ -305,9 +305,9 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
     
     String school = '';
     final email = user.email ?? '';
-    if (email.endsWith('@g.nycu.edu.tw') || email.endsWith('@nycu.edu.tw')) {
+    if (email.endsWith('nycu.edu.tw') ) {
       school = 'NYCU';
-    } else if (email.endsWith('@gapp.nthu.edu.tw') || email.endsWith('@nthu.edu.tw')) {
+    } else if (email.endsWith('nthu.edu.tw')) {
       school = 'NTHU';
     } else {
       school = '其他';
@@ -442,7 +442,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
       // 直接使用 Authentication 中的 email 檢查學校信箱結尾（更可靠且快速）
       final currentEmail = user.email ?? '';
       final isAppleRelayEmail = currentEmail.endsWith('@privaterelay.appleid.com');
-      final hasValidAuthEmail = currentEmail.endsWith('@nycu.edu.tw') || currentEmail.endsWith('@nthu.edu.tw');
+      final hasValidAuthEmail = currentEmail.endsWith('nycu.edu.tw') || currentEmail.endsWith('nthu.edu.tw');
 
       // 如果 Auth 的 email 不是合法學校信箱（或是 Relay/空），則啟動補齊流程
       if (!hasValidAuthEmail || currentEmail.isEmpty || isAppleRelayEmail) {
