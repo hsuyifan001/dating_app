@@ -36,8 +36,9 @@ export const sendNotification = onCall(async (request) => {
 // 每日配對更新 function
 export const dailyMatchUpdate = onSchedule(
   {
-    schedule: "0 5 * * *", // 每天 5:00 觸發 (UTC 時間)
-    timeZone: "Asia/Taipei", // 設定時區為台灣
+    schedule: "0 5 * * *", // 每天 5:00 觸發
+    timeZone: "Asia/Taipei", // 設定時區為台灣,
+    memory: "1GiB",
   },
   async (_event) => {
     const db = admin.firestore();
