@@ -39,6 +39,7 @@ export const dailyMatchUpdate = onSchedule(
     schedule: "0 5 * * *", // 每天 5:00 觸發
     timeZone: "Asia/Taipei", // 設定時區為台灣,
     memory: "1GiB",
+    timeoutSeconds: 540,
   },
   async (_event) => {
     const db = admin.firestore();
@@ -53,223 +54,237 @@ export const dailyMatchUpdate = onSchedule(
     const todayKey = taipeiDateStr.replace(/-/g, ""); // YYYYMMDD
 
     try {
-      // 取得所有用戶
+      // 1. 取得所有用戶 (這裡雖然是一次取得，但因為有 1GiB 記憶體通常撐得住)
+      console.log("開始讀取所有用戶資料...");
       const usersSnapshot = await db.collection("users").get();
-      const userPromises = usersSnapshot.docs.map(async (userDoc) => {
-        const userId = userDoc.id;
-        const userData = userDoc.data();
-        let leftMatches = 25;
-        const dailyMatchIds = new Set<string>();
-        let existingUsers: admin.firestore.DocumentSnapshot[] = []; // 已儲存的用戶
+      const allUserDocs = usersSnapshot.docs;
+      console.log(`共需處理 ${allUserDocs.length} 位用戶`);
 
-        // 0. 取得已儲存的配對快取
-        const matchDocRef = db.collection("users")
-          .doc(userId)
-          .collection("dailyMatches")
-          .doc(todayKey);
-        const matchDoc = await matchDocRef.get();
-        if (matchDoc.exists) {
-          const data = matchDoc.data() || {};
-          const userIds = data.userIds || [];
-          leftMatches = 25 - userIds.length;
-          dailyMatchIds.clear();
-          userIds.forEach((id: string) => dailyMatchIds.add(id));
+      // =====================================================
+      // 修改重點：設定分批大小 (Chunk Size)
+      // 建議設定 20~50，避免同時發出太多連線導致 Timeout
+      // =====================================================
+      const CHUNK_SIZE = 50;
 
-          // 取得已儲存的用戶文檔
-          if (userIds.length > 0) {
-            existingUsers = await Promise.all(
-              userIds.map((id: string) => db.collection("users").doc(id).get())
-            );
+      // 將使用者切分成小批次
+      const chunks = [];
+      for (let i = 0; i < allUserDocs.length; i += CHUNK_SIZE) {
+        chunks.push(allUserDocs.slice(i, i + CHUNK_SIZE));
+      }
+
+      // =====================================================
+      // 修改重點：使用 for...of 迴圈「依序」處理每一批
+      // =====================================================
+      for (const [chunkIndex, chunk] of chunks.entries()) {
+        console.log(
+          `正在處理第 ${chunkIndex + 1} / ${chunks.length} 批 ` +
+          `(本批 ${chunk.length} 人)...`
+        );
+
+        // 在這一批次內，我們可以使用 Promise.all 讓這 50 人並行處理
+        // 這樣既有效率，又不會塞爆網路
+        const chunkPromises = chunk.map(async (userDoc) => {
+          const userId = userDoc.id;
+          const userData = userDoc.data();
+          let leftMatches = 25;
+          const dailyMatchIds = new Set<string>();
+          let existingUsers: admin.firestore.DocumentSnapshot[] = [];
+
+          // --- 以下邏輯保持不變 ---
+
+          // 0. 取得已儲存的配對快取
+          const matchDocRef = db.collection("users")
+            .doc(userId)
+            .collection("dailyMatches")
+            .doc(todayKey);
+
+          const matchDoc = await matchDocRef.get();
+
+          if (matchDoc.exists) {
+            const data = matchDoc.data() || {};
+            const userIds = data.userIds || [];
+            leftMatches = 25 - userIds.length;
+            dailyMatchIds.clear();
+            userIds.forEach((id: string) => dailyMatchIds.add(id));
+
+            if (userIds.length > 0) {
+              // 注意：這裡如果 userIds 很多，也建議用 Promise.all 但數量不多通常沒事
+              existingUsers = await Promise.all(
+                userIds.map(
+                  (id: string) => db.collection("users").doc(id).get()
+                )
+              );
+            }
           }
-        }
 
-        if (leftMatches <= 0) {
-          // 如果已滿 25 人，直接使用已儲存的用戶
-          const recommendedUsers = existingUsers;
+          if (leftMatches <= 0) {
+            // 已滿直接返回，不需運算
+            // 若需要更新快取邏輯可保留，否則直接 return 節省資源
+            const recommendedUsers = existingUsers;
+            const recommendedUserIds = recommendedUsers.map((doc) => doc.id);
+
+            // 確保即使沒運算也要寫入/更新時間戳記 (視需求而定)
+            // 這裡保留你的原始邏輯
+            await matchDocRef.set({
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              userIds: recommendedUserIds,
+              currentMatchIdx: 0,
+            });
+            return;
+          }
+
+          // 1. 取得已推播過的 userId
+          const pushedSnapshot = await db.collection("users")
+            .doc(userId)
+            .collection("pushed")
+            .get();
+          const pushedIds = new Set(pushedSnapshot.docs.map((doc) => doc.id));
+
+          // 2. 取得條件
+          const currentUserSchool = userData.school || "";
+          const currentUserGender = userData.gender;
+          const currentUserDepartment = userData.department || "";
+          const matchSameDepartment = userData.matchSameDepartment || false;
+          const matchGender = userData.matchGender || [];
+          const matchSchools = userData.matchSchools || [];
+          const likedTagCount = userData.likedTagCount || {};
+          const likedHabitCount = userData.likedHabitCount || {};
+
+          // 計算 top 3
+          const sortedTags = Object.keys(likedTagCount).sort(
+            (a, b) => likedTagCount[b] - likedTagCount[a]
+          );
+          const topTags = sortedTags.slice(0, 3);
+          const sortedHabits = Object.keys(likedHabitCount).sort(
+            (a, b) => likedHabitCount[b] - likedHabitCount[a]
+          );
+          const topHabits = sortedHabits.slice(0, 3);
+
+          // 3. 對你按過愛心的人
+          const likedMeSnapshot = await db.collection("likes")
+            .where("to", "==", userId)
+            .get();
+
+          const likedMeIds = new Set(
+            likedMeSnapshot.docs.map((doc) => doc.data().from)
+          );
+          let likedMeUsers: admin.firestore.DocumentSnapshot[] = [];
+
+          if (likedMeIds.size > 0) {
+            const likedMeDocs = await Promise.all(
+              Array.from(likedMeIds).map(
+                (id) => db.collection("users").doc(id).get()
+              )
+            );
+            likedMeUsers = likedMeDocs.filter((doc) =>
+              matchGender.includes(doc.data()?.gender) &&
+              !pushedIds.has(doc.id) &&
+              doc.id !== userId &&
+              !dailyMatchIds.has(doc.id)
+            ).slice(0, Math.min(5, leftMatches));
+            leftMatches = Math.max(0, leftMatches - likedMeUsers.length);
+          }
+
+          // 4. 查詢候選人
+          // ⚠️ 效能注意：這裡是在迴圈內做 Query，未來用戶多時會變慢，但目前先解 Timeout 問題
+          let allCandidateDocs: admin.firestore.DocumentSnapshot[] = [];
+          if (matchGender.length > 0 && matchSchools.length > 0) {
+            const allCandidateSnapshot = await db.collection("users")
+              .where("gender", "in", matchGender)
+              .where("school", "in", matchSchools)
+              .get();
+
+            allCandidateDocs = allCandidateSnapshot.docs.filter((doc) => {
+              const data = doc.data();
+              const isSelf = doc.id === userId;
+              const isPushed = pushedIds.has(doc.id);
+              const isSameDepartment =
+                data?.department === currentUserDepartment;
+              const isDailyMatched = dailyMatchIds.has(doc.id);
+              const isSameSchool = data?.school === currentUserSchool;
+
+              if (matchSameDepartment === false &&
+                  isSameSchool && isSameDepartment) {
+                return false;
+              }
+
+              // 雙向配對檢查
+              const candidateMatchGender = data?.matchGender || [];
+              if (!candidateMatchGender.includes(currentUserGender)) {
+                return false;
+              }
+
+              const candidateMatchSchools = data?.matchSchools || [];
+              if (!candidateMatchSchools.includes(currentUserSchool)) {
+                return false;
+              }
+
+              const candidateMatchSameDepartment =
+                data?.matchSameDepartment || false;
+              if (candidateMatchSameDepartment === false &&
+                  isSameSchool && isSameDepartment) {
+                return false;
+              }
+
+              return !isSelf && !isPushed && !isDailyMatched;
+            });
+          }
+
+          // 5. 篩選 Tag/Habit
+          const filteredUsers = allCandidateDocs
+            .filter((doc) => {
+              const tags = doc.data()?.tags || [];
+              const habits = doc.data()?.habits || [];
+              const hasMatchingTag = tags.some(
+                (tag: string) => topTags.includes(tag)
+              );
+              const hasMatchingHabit = habits.some(
+                (habit: string) => topHabits.includes(habit)
+              );
+              return (
+                !likedMeUsers.some((d) => d.id === doc.id) &&
+                (hasMatchingTag || hasMatchingHabit)
+              );
+            })
+            .slice(0, Math.min(15, leftMatches));
+          leftMatches = Math.max(0, leftMatches - filteredUsers.length);
+
+          // 6. 隨機選擇
+          const remainingCandidates = allCandidateDocs.filter((doc) =>
+            !likedMeUsers.some((d) => d.id === doc.id) &&
+            !filteredUsers.some((d) => d.id === doc.id)
+          );
+          remainingCandidates.sort(() => Math.random() - 0.5);
+          const randomSelection = remainingCandidates.slice(0, leftMatches);
+
+          // 7. 合併名單
+          const recommendedUsers = [
+            ...existingUsers,
+            ...likedMeUsers,
+            ...filteredUsers,
+            ...randomSelection,
+          ].slice(0, 25);
+
           const recommendedUserIds = recommendedUsers.map((doc) => doc.id);
 
-          // 更新快取（如果需要）
+          // 8. 寫入結果
           await matchDocRef.set({
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             userIds: recommendedUserIds,
             currentMatchIdx: 0,
           });
 
-          console.log(JSON.stringify({
-            event: "dailyMatchUpdate",
-            userId: userId,
-            recommendedCount: recommendedUserIds.length,
-            timestamp: new Date().toISOString(),
-          }));
-          return;
-        }
-
-        // 1. 取得已推播過的 userId
-        const pushedSnapshot = await db.collection("users")
-          .doc(userId)
-          .collection("pushed")
-          .get();
-        const pushedIds = new Set(pushedSnapshot.docs.map((doc) => doc.id));
-
-        // 2. 取得自己的配對條件與 likedTagCount 及 likedHabitCount
-        const currentUserSchool = userData.school || "";
-        const currentUserGender = userData.gender;
-        const currentUserDepartment = userData.department || "";
-        const matchSameDepartment = userData.matchSameDepartment || false;
-        const matchGender = userData.matchGender || [];
-        const matchSchools = userData.matchSchools || [];
-        const likedTagCount = userData.likedTagCount || {};
-        const likedHabitCount = userData.likedHabitCount || {};
-
-        // 計算 top 3 tag 及 top 3 habit
-        const sortedTags = Object.keys(likedTagCount).sort((a, b) =>
-          likedTagCount[b] - likedTagCount[a]
-        );
-        const topTags = sortedTags.slice(0, 3);
-        const sortedHabits = Object.keys(likedHabitCount).sort((a, b) =>
-          likedHabitCount[b] - likedHabitCount[a]
-        );
-        const topHabits = sortedHabits.slice(0, 3);
-
-        // 3. 對你按過愛心的人
-        const likedMeSnapshot = await db.collection("likes")
-          .where("to", "==", userId)
-          .get();
-        const likedMeIds = new Set(likedMeSnapshot.docs.map((doc) =>
-          doc.data().from
-        ));
-        let likedMeUsers: admin.firestore.DocumentSnapshot[] = [];
-        if (likedMeIds.size > 0) {
-          const likedMeDocs = await Promise.all(
-            Array.from(likedMeIds).map((id) =>
-              db.collection("users").doc(id).get()
-            )
-          );
-          likedMeUsers = likedMeDocs.filter((doc) =>
-            matchGender.includes(doc.data()?.gender) &&
-            !pushedIds.has(doc.id) &&
-            doc.id !== userId &&
-            !dailyMatchIds.has(doc.id)
-          ).slice(0, Math.min(5, leftMatches));
-          leftMatches = Math.max(0, leftMatches - likedMeUsers.length);
-        }
-
-        // 4. 查詢一次所有候選人（符合性別、學校、系所且未被推播）
-        let allCandidateDocs: admin.firestore.DocumentSnapshot[] = [];
-        if (matchGender.length > 0 && matchSchools.length > 0) {
-          const allCandidateSnapshot = await db.collection("users")
-            .where("gender", "in", matchGender)
-            .where("school", "in", matchSchools)
-            .get();
-          allCandidateDocs = allCandidateSnapshot.docs.filter((doc) => {
-            const data = doc.data();
-            const isSelf = doc.id === userId;
-            const isPushed = pushedIds.has(doc.id);
-            const isSameDepartment = data?.department === currentUserDepartment;
-            const isDailyMatched = dailyMatchIds.has(doc.id);
-            const isSameSchool = data?.school === currentUserSchool;
-
-            if (matchSameDepartment === false &&
-                isSameSchool && isSameDepartment) {
-              return false;
-            }
-
-            // 新增：雙向配對檢查
-            // 檢查候選人的 matchGender 是否包含用戶的 gender
-            const candidateMatchGender = data?.matchGender || [];
-            if (!candidateMatchGender.includes(currentUserGender)) {
-              return false;
-            }
-
-            // 檢查候選人的 matchSchools 是否包含用戶的 school
-            const candidateMatchSchools = data?.matchSchools || [];
-            if (!candidateMatchSchools.includes(currentUserSchool)) {
-              return false;
-            }
-
-            // 若候選人 matchSameDepartment 為 false
-            // 確保候選人的 department 不等於用戶的 department
-            const candidateMatchSameDepartment =
-              data?.matchSameDepartment || false;
-            if (candidateMatchSameDepartment === false &&
-                isSameSchool && isSameDepartment) {
-              return false;
-            }
-
-            return !isSelf && !isPushed && !isDailyMatched;
-          });
-        }
-
-        // 5. 從中挑出 tag 及 habit 傾向者
-        const filteredUsers = allCandidateDocs
-          .filter((doc) => {
-            const tags = doc.data()?.tags || [];
-            const habits = doc.data()?.habits || [];
-            const hasMatchingTag = tags.some((tag: string) =>
-              topTags.includes(tag));
-            const hasMatchingHabit = habits.some((habit: string) =>
-              topHabits.includes(habit));
-            return !likedMeUsers.some((d) => d.id === doc.id) &&
-              (hasMatchingTag || hasMatchingHabit);
-          })
-          .slice(0, Math.min(15, leftMatches));
-        leftMatches = Math.max(0, leftMatches - filteredUsers.length);
-
-        // 6. 從剩下的中隨機選擇
-        const remainingCandidates = allCandidateDocs.filter((doc) =>
-          !likedMeUsers.some((d) => d.id === doc.id) &&
-          !filteredUsers.some((d) => d.id === doc.id)
-        );
-        remainingCandidates.sort(() => Math.random() - 0.5); // 隨機排序
-        const randomSelection = remainingCandidates.slice(0, leftMatches);
-        leftMatches = Math.max(0, leftMatches - randomSelection.length);
-
-        // 把不符合的人也加入（如果還有剩餘）
-        // let excludedUsers: admin.firestore.DocumentSnapshot[] = [];
-        // if (leftMatches > 0) {
-        //   const allUsersSnapshot = await db.collection("users").get();
-        //   excludedUsers = allUsersSnapshot.docs.filter((doc) => {
-        //     const isSelf = doc.id === userId;
-        //     const isPushed = pushedIds.has(doc.id);
-        //     const isDailyMatched = dailyMatchIds.has(doc.id);
-        //     const isInPreviousLists = (
-        //       likedMeUsers.some((d) => d.id === doc.id) ||
-        //       filteredUsers.some((d) => d.id === doc.id) ||
-        //       randomSelection.some((d) => d.id === doc.id)
-        //     );
-        //     return !isSelf &&
-        //       !isPushed &&
-        //       !isDailyMatched &&
-        //       !isInPreviousLists;
-        //   }).slice(0, leftMatches);
-        // }
-
-        // 7. 合併推薦名單（將已儲存的用戶放到最前面）
-        const recommendedUsers = [
-          ...existingUsers, // 已儲存的用戶放最前面
-          ...likedMeUsers,
-          ...filteredUsers,
-          ...randomSelection,
-          // ...excludedUsers,
-        ].slice(0, 25); // 確保總數不超過 25
-        const recommendedUserIds = recommendedUsers.map((doc) => doc.id);
-
-        // 8. 快取每日推薦
-        await matchDocRef.set({
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          userIds: recommendedUserIds,
-          currentMatchIdx: 0,
+          // 簡化 Log，避免 Log 太多也被截斷
+          // console.log(`User ${userId} updated.`);
         });
 
-        console.log(JSON.stringify({
-          event: "dailyMatchUpdate",
-          userId: userId,
-          recommendedCount: recommendedUserIds.length,
-          timestamp: new Date().toISOString(),
-        }));
-      });
+        // 等待這一批次 (50人) 全部做完
+        await Promise.all(chunkPromises);
 
-      await Promise.all(userPromises);
+        // (選填) 如果資料庫寫入量非常大，可以在這裡加一個小延遲讓 Firestore 喘口氣
+        // await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
       console.log("Daily match update completed for all users");
     } catch (e: unknown) {
       console.error("每日配對更新失敗:", e);
