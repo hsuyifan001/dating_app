@@ -36,14 +36,16 @@ export const sendNotification = onCall(async (request) => {
 // 每日配對更新 function
 export const dailyMatchUpdate = onSchedule(
   {
-    schedule: "0 5 * * *", // 每天 5:00 觸發
-    timeZone: "Asia/Taipei", // 設定時區為台灣,
-    memory: "1GiB",
-    timeoutSeconds: 540,
+    schedule: "0 5 * * *", // 每天台灣時間 05:00 觸發
+    timeZone: "Asia/Taipei",
+    memory: "1GiB", // 1GiB 記憶體，足夠存放數萬名使用者的資料快取
+    timeoutSeconds: 540, // 9 分鐘超時設定，允許處理大量數據
   },
   async (_event) => {
     const db = admin.firestore();
     const now = new Date();
+
+    // 設定日期格式 (用來產生 document ID)
     const formatter = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Taipei",
       year: "numeric",
@@ -54,45 +56,61 @@ export const dailyMatchUpdate = onSchedule(
     const todayKey = taipeiDateStr.replace(/-/g, ""); // YYYYMMDD
 
     try {
-      // 1. 取得所有用戶 (這裡雖然是一次取得，但因為有 1GiB 記憶體通常撐得住)
-      console.log("開始讀取所有用戶資料...");
+      console.log(`[${todayKey}] 開始執行每日配對更新...`);
+
+      // =================================================================
+      // 步驟 1: 建立全域快取 (Global Cache)
+      // 一次讀取所有用戶，大幅節省讀取次數 (Cost Optimization)
+      // =================================================================
+      console.log("正在載入所有用戶資料至記憶體...");
       const usersSnapshot = await db.collection("users").get();
       const allUserDocs = usersSnapshot.docs;
-      console.log(`共需處理 ${allUserDocs.length} 位用戶`);
 
-      // =====================================================
-      // 修改重點：設定分批大小 (Chunk Size)
-      // 建議設定 20~50，避免同時發出太多連線導致 Timeout
-      // =====================================================
-      const CHUNK_SIZE = 50;
+      console.log(`共載入 ${allUserDocs.length} 位用戶資料。`);
 
-      // 將使用者切分成小批次
+      // 建立快速查詢表 (Lookup Maps)
+      // userDataMap: 透過 ID 快速拿資料
+      // userDocMap: 透過 ID 快速拿 Snapshot 物件 (有些 legacy code 可能需要 Snapshot)
+      const userDataMap = new Map<string, admin.firestore.DocumentData>();
+      const userDocMap = new Map<string, admin.firestore.DocumentSnapshot>();
+
+      allUserDocs.forEach((doc) => {
+        userDataMap.set(doc.id, doc.data());
+        userDocMap.set(doc.id, doc);
+      });
+
+      // =================================================================
+      // 步驟 2: 分批處理 (Batch Processing)
+      // 避免同時發出數千個請求導致 DEADLINE_EXCEEDED
+      // =================================================================
+      const CHUNK_SIZE = 50; // 每批處理 50 人
       const chunks = [];
       for (let i = 0; i < allUserDocs.length; i += CHUNK_SIZE) {
         chunks.push(allUserDocs.slice(i, i + CHUNK_SIZE));
       }
 
-      // =====================================================
-      // 修改重點：使用 for...of 迴圈「依序」處理每一批
-      // =====================================================
+      // 使用序列迴圈處理每一批 (Batch by Batch)
       for (const [chunkIndex, chunk] of chunks.entries()) {
         console.log(
           `正在處理第 ${chunkIndex + 1} / ${chunks.length} 批 ` +
           `(本批 ${chunk.length} 人)...`
         );
 
-        // 在這一批次內，我們可以使用 Promise.all 讓這 50 人並行處理
-        // 這樣既有效率，又不會塞爆網路
+        // 在批次內部使用 Promise.all 進行平行處理
         const chunkPromises = chunk.map(async (userDoc) => {
           const userId = userDoc.id;
           const userData = userDoc.data();
-          let leftMatches = 25;
+
+          // 如果用戶資料損毀或為空，跳過
+          if (!userData) return;
+
+          let leftMatches = 25; // 目標配對數量
           const dailyMatchIds = new Set<string>();
           let existingUsers: admin.firestore.DocumentSnapshot[] = [];
 
-          // --- 以下邏輯保持不變 ---
-
-          // 0. 取得已儲存的配對快取
+          // -----------------------------------------------------------
+          // A. 檢查今日配對快取 (Cache Check)
+          // -----------------------------------------------------------
           const matchDocRef = db.collection("users")
             .doc(userId)
             .collection("dailyMatches")
@@ -102,192 +120,225 @@ export const dailyMatchUpdate = onSchedule(
 
           if (matchDoc.exists) {
             const data = matchDoc.data() || {};
-            const userIds = data.userIds || [];
-            leftMatches = 25 - userIds.length;
-            dailyMatchIds.clear();
-            userIds.forEach((id: string) => dailyMatchIds.add(id));
+            const cachedUserIds = data.userIds || [];
 
-            if (userIds.length > 0) {
-              // 注意：這裡如果 userIds 很多，也建議用 Promise.all 但數量不多通常沒事
-              existingUsers = await Promise.all(
-                userIds.map(
-                  (id: string) => db.collection("users").doc(id).get()
-                )
-              );
+            // 載入既有的配對 ID
+            cachedUserIds.forEach((id: string) => dailyMatchIds.add(id));
+            leftMatches = 25 - cachedUserIds.length;
+
+            if (cachedUserIds.length > 0) {
+              // 直接從記憶體 (Map) 拿資料，不讀資料庫
+              existingUsers = cachedUserIds
+                .map((id: string) => userDocMap.get(id))
+                .filter(
+                  (doc: admin.firestore.DocumentSnapshot | undefined) =>
+                    doc !== undefined
+                ) as admin.firestore.DocumentSnapshot[];
             }
           }
 
+          // 如果已經滿了，直接結束 (Early Return)
           if (leftMatches <= 0) {
-            // 已滿直接返回，不需運算
-            // 若需要更新快取邏輯可保留，否則直接 return 節省資源
-            const recommendedUsers = existingUsers;
-            const recommendedUserIds = recommendedUsers.map((doc) => doc.id);
+            const recommendedUserIds = existingUsers.map((doc) => doc.id);
 
-            // 確保即使沒運算也要寫入/更新時間戳記 (視需求而定)
-            // 這裡保留你的原始邏輯
+            // ✅ 安全寫入修正：
+            // 1. 使用 { merge: true } 保護其他欄位
+            // 2. 拿掉 currentMatchIdx，避免使用者閱讀進度被重置
             await matchDocRef.set({
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               userIds: recommendedUserIds,
-              currentMatchIdx: 0,
-            });
+            }, {merge: true});
+
             return;
           }
 
-          // 1. 取得已推播過的 userId
+          // -----------------------------------------------------------
+          // B. 讀取個人私有資料 (Pushed & Likes)
+          // 這是少數無法避免的讀取，因為它是 subcollection
+          // -----------------------------------------------------------
+
+          // 1. 讀取已推播名單
           const pushedSnapshot = await db.collection("users")
             .doc(userId)
             .collection("pushed")
             .get();
           const pushedIds = new Set(pushedSnapshot.docs.map((doc) => doc.id));
 
-          // 2. 取得條件
+          // 2. 讀取按我讚的人
+          const likedMeSnapshot = await db.collection("likes")
+            .where("to", "==", userId)
+            .get();
+          const likedMeSourceIds = new Set(
+            likedMeSnapshot.docs.map((doc) => doc.data().from)
+          );
+
+          // -----------------------------------------------------------
+          // C. 準備配對條件
+          // -----------------------------------------------------------
           const currentUserSchool = userData.school || "";
           const currentUserGender = userData.gender;
           const currentUserDepartment = userData.department || "";
           const matchSameDepartment = userData.matchSameDepartment || false;
-          const matchGender = userData.matchGender || [];
-          const matchSchools = userData.matchSchools || [];
+          const matchGender: string[] = userData.matchGender || [];
+          const matchSchools: string[] = userData.matchSchools || [];
+
+          // 興趣與標籤
           const likedTagCount = userData.likedTagCount || {};
           const likedHabitCount = userData.likedHabitCount || {};
 
-          // 計算 top 3
-          const sortedTags = Object.keys(likedTagCount).sort(
-            (a, b) => likedTagCount[b] - likedTagCount[a]
-          );
-          const topTags = sortedTags.slice(0, 3);
-          const sortedHabits = Object.keys(likedHabitCount).sort(
-            (a, b) => likedHabitCount[b] - likedHabitCount[a]
-          );
-          const topHabits = sortedHabits.slice(0, 3);
+          // 計算 Top 3
+          const topTags = Object.keys(likedTagCount)
+            .sort((a, b) => likedTagCount[b] - likedTagCount[a])
+            .slice(0, 3);
+          const topHabits = Object.keys(likedHabitCount)
+            .sort((a, b) => likedHabitCount[b] - likedHabitCount[a])
+            .slice(0, 3);
 
-          // 3. 對你按過愛心的人
-          const likedMeSnapshot = await db.collection("likes")
-            .where("to", "==", userId)
-            .get();
-
-          const likedMeIds = new Set(
-            likedMeSnapshot.docs.map((doc) => doc.data().from)
-          );
+          // -----------------------------------------------------------
+          // D. 篩選：對我按讚的人 (使用記憶體 Map)
+          // -----------------------------------------------------------
           let likedMeUsers: admin.firestore.DocumentSnapshot[] = [];
+          if (likedMeSourceIds.size > 0) {
+            likedMeUsers = Array.from(likedMeSourceIds)
+              .map((id) => userDocMap.get(id)) // 從快取拿 DocumentSnapshot
+              .filter((doc): doc is admin.firestore.DocumentSnapshot => {
+                if (!doc) return false;
+                const d = doc.data();
+                if (!d) return false;
 
-          if (likedMeIds.size > 0) {
-            const likedMeDocs = await Promise.all(
-              Array.from(likedMeIds).map(
-                (id) => db.collection("users").doc(id).get()
-              )
-            );
-            likedMeUsers = likedMeDocs.filter((doc) =>
-              matchGender.includes(doc.data()?.gender) &&
-              !pushedIds.has(doc.id) &&
-              doc.id !== userId &&
-              !dailyMatchIds.has(doc.id)
-            ).slice(0, Math.min(5, leftMatches));
+                // 檢查是否符合基本配對門檻
+                return (
+                  matchGender.includes(d.gender) &&
+                  !pushedIds.has(doc.id) &&
+                  doc.id !== userId &&
+                  !dailyMatchIds.has(doc.id)
+                );
+              })
+              .slice(0, Math.min(5, leftMatches));
+
             leftMatches = Math.max(0, leftMatches - likedMeUsers.length);
           }
 
-          // 4. 查詢候選人
-          // ⚠️ 效能注意：這裡是在迴圈內做 Query，未來用戶多時會變慢，但目前先解 Timeout 問題
-          let allCandidateDocs: admin.firestore.DocumentSnapshot[] = [];
+          // -----------------------------------------------------------
+          // E. 核心篩選：尋找候選人 (In-Memory Filtering)
+          // ⚠️ 這是省下大量讀取的關鍵步驟，不再 query DB
+          // -----------------------------------------------------------
+          let candidates: admin.firestore.QueryDocumentSnapshot[] = [];
+
           if (matchGender.length > 0 && matchSchools.length > 0) {
-            const allCandidateSnapshot = await db.collection("users")
-              .where("gender", "in", matchGender)
-              .where("school", "in", matchSchools)
-              .get();
+            // 使用 Array.filter 取代 Firestore Query
+            candidates = allUserDocs.filter((doc) => {
+              const targetId = doc.id;
+              const targetData = doc.data();
 
-            allCandidateDocs = allCandidateSnapshot.docs.filter((doc) => {
-              const data = doc.data();
-              const isSelf = doc.id === userId;
-              const isPushed = pushedIds.has(doc.id);
+              // 1. 排除自己、已推播、已存在今日名單
+              if (targetId === userId) return false;
+              if (pushedIds.has(targetId)) return false;
+              if (dailyMatchIds.has(targetId)) return false;
+
+              // 2. 排除已經在 likedMeUsers 列表中的人 (避免重複)
+              if (likedMeUsers.some((u) => u.id === targetId)) return false;
+
+              // 3. 符合我的篩選條件 (性別、學校)
+              if (!matchGender.includes(targetData.gender)) return false;
+              if (!matchSchools.includes(targetData.school)) return false;
+
+              // 4. 同系所邏輯檢查
+              const isSameSchool = targetData.school === currentUserSchool;
               const isSameDepartment =
-                data?.department === currentUserDepartment;
-              const isDailyMatched = dailyMatchIds.has(doc.id);
-              const isSameSchool = data?.school === currentUserSchool;
+                targetData.department === currentUserDepartment;
 
+              // 如果我不接受同系，且對方跟我同校同系 -> 排除
               if (matchSameDepartment === false &&
                   isSameSchool && isSameDepartment) {
                 return false;
               }
 
-              // 雙向配對檢查
-              const candidateMatchGender = data?.matchGender || [];
-              if (!candidateMatchGender.includes(currentUserGender)) {
-                return false;
-              }
+              // 5. 【雙向配對】檢查對方是否也接受我
+              const targetMatchGender = targetData.matchGender || [];
+              if (!targetMatchGender.includes(currentUserGender)) return false;
 
-              const candidateMatchSchools = data?.matchSchools || [];
-              if (!candidateMatchSchools.includes(currentUserSchool)) {
-                return false;
-              }
+              const targetMatchSchools = targetData.matchSchools || [];
+              if (!targetMatchSchools.includes(currentUserSchool)) return false;
 
-              const candidateMatchSameDepartment =
-                data?.matchSameDepartment || false;
-              if (candidateMatchSameDepartment === false &&
+              const targetMatchSameDepartment =
+                targetData.matchSameDepartment || false;
+              // 如果對方不接受同系，且我跟對方同校同系 -> 排除
+              if (targetMatchSameDepartment === false &&
                   isSameSchool && isSameDepartment) {
                 return false;
               }
 
-              return !isSelf && !isPushed && !isDailyMatched;
+              return true;
             });
           }
 
-          // 5. 篩選 Tag/Habit
-          const filteredUsers = allCandidateDocs
+          // -----------------------------------------------------------
+          // F. 進階篩選：Tag & Habit
+          // -----------------------------------------------------------
+          const filteredUsers = candidates
             .filter((doc) => {
-              const tags = doc.data()?.tags || [];
-              const habits = doc.data()?.habits || [];
+              const d = doc.data();
+              const tags = d.tags || [];
+              const habits = d.habits || [];
+
               const hasMatchingTag = tags.some(
-                (tag: string) => topTags.includes(tag)
+                (t: string) => topTags.includes(t)
               );
               const hasMatchingHabit = habits.some(
-                (habit: string) => topHabits.includes(habit)
+                (h: string) => topHabits.includes(h)
               );
-              return (
-                !likedMeUsers.some((d) => d.id === doc.id) &&
-                (hasMatchingTag || hasMatchingHabit)
-              );
+
+              return hasMatchingTag || hasMatchingHabit;
             })
             .slice(0, Math.min(15, leftMatches));
+
           leftMatches = Math.max(0, leftMatches - filteredUsers.length);
 
-          // 6. 隨機選擇
-          const remainingCandidates = allCandidateDocs.filter((doc) =>
-            !likedMeUsers.some((d) => d.id === doc.id) &&
-            !filteredUsers.some((d) => d.id === doc.id)
+          // -----------------------------------------------------------
+          // G. 隨機補滿
+          // -----------------------------------------------------------
+          // 建立已選名單 ID Set 以加速排除
+          const chosenIds = new Set(filteredUsers.map((u) => u.id));
+
+          const remainingCandidates = candidates.filter(
+            (doc) => !chosenIds.has(doc.id)
           );
+
+          // 隨機打亂
           remainingCandidates.sort(() => Math.random() - 0.5);
+
           const randomSelection = remainingCandidates.slice(0, leftMatches);
 
-          // 7. 合併名單
-          const recommendedUsers = [
-            ...existingUsers,
-            ...likedMeUsers,
-            ...filteredUsers,
-            ...randomSelection,
+          // -----------------------------------------------------------
+          // H. 合併與寫入結果
+          // -----------------------------------------------------------
+          const finalRecommendationDocs = [
+            ...existingUsers, // 既有的 (排最前)
+            ...likedMeUsers, // 按讚的
+            ...filteredUsers, // 興趣相投的
+            ...randomSelection, // 隨機的
           ].slice(0, 25);
 
-          const recommendedUserIds = recommendedUsers.map((doc) => doc.id);
+          const finalUserIds = finalRecommendationDocs.map((doc) => doc.id);
 
-          // 8. 寫入結果
+          // ✅ 安全寫入修正：
+          // 這裡是產生新名單，可以設定 currentMatchIdx 為 0
+          // 但仍建議保留 { merge: true } 以防萬一
           await matchDocRef.set({
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            userIds: recommendedUserIds,
-            currentMatchIdx: 0,
-          });
-
-          // 簡化 Log，避免 Log 太多也被截斷
-          // console.log(`User ${userId} updated.`);
+            userIds: finalUserIds,
+            currentMatchIdx: 0, // 新名單，重置閱讀進度
+          }, {merge: true});
         });
 
-        // 等待這一批次 (50人) 全部做完
+        // 等待這一批次全部完成
         await Promise.all(chunkPromises);
-
-        // (選填) 如果資料庫寫入量非常大，可以在這裡加一個小延遲讓 Firestore 喘口氣
-        // await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      console.log("Daily match update completed for all users");
+      console.log("每日配對更新全數完成！");
     } catch (e: unknown) {
-      console.error("每日配對更新失敗:", e);
+      console.error("每日配對更新發生嚴重錯誤:", e);
     }
   }
 );
