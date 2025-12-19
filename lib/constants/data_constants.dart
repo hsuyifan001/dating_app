@@ -26,7 +26,7 @@ const List<String> zodiacList = [
 
 // 在學狀態列表
 const List<String> educationLevelsList = [
-  '大一', '大二', '大三', '大四', '碩士', '博士', '畢業',
+  '大一', '大二', '大三', '大四', '大五以上', '碩士', '博士',
 ];
 
 // 系所列表
