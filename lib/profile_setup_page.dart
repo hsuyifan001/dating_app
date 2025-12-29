@@ -247,10 +247,10 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> with SingleTickerPr
         showAutoDismissDialog('請至少選擇一個興趣');
         return;
       }
-      if (selectedMBTI == null) {
+      /*if (selectedMBTI == null) {
         showAutoDismissDialog('請選擇 MBTI');
         return;
-      }
+      }*/
       if (selectedZodiac == null) {
         showAutoDismissDialog('請選擇星座');
         return;
