@@ -80,7 +80,7 @@ class _AccountPageState extends State<AccountPage> {
       // 新增變數的讀取
       habits = Set<String>.from(data['habits'] ?? []);
       educationLevels = data['educationLevels'];
-      department = data['department'];
+      department = data['department'] ?? '';
       matchSameDepartment = data['matchSameDepartment'];
       matchGender = Set<String>.from(data['matchGender'] ?? []);
       matchSchools = Set<String>.from(data['matchSchools'] ?? []);
@@ -569,6 +569,26 @@ class _AccountPageState extends State<AccountPage> {
 
               SizedBox(height: h(8)),
 
+              SizedBox(
+                  height: h(30),
+                  width: w(300),
+                  child: AutoSizeText(
+                    '學系：${department!='' ? department : '尚未填寫'}',
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 30,
+                      color: Colors.black,
+                    ),
+                    minFontSize: 16,
+                    overflow: TextOverflow.ellipsis,
+                    group: myGroup,
+                  ),
+                ),
+
+              SizedBox(height: h(8)),
+                
               SizedBox(
                 height: h(30),
                 width: w(300),
@@ -1161,7 +1181,17 @@ class _SimpleProfileEditPageState extends State<SimpleProfileEditPage> {
                 children: mbtiList.map((type) => ChoiceChip(
                   label: Text(type),
                   selected: selectedMBTI == type,
-                  onSelected: (_) => setState(() => selectedMBTI = type),
+                  onSelected: (_) {
+                      setState(() {
+                      if (selectedMBTI == type) {
+                        // 再點一次同一個 chip → 取消選取
+                        selectedMBTI = null;
+                      } else {
+                        // 選取新的 chip
+                        selectedMBTI = type;
+                      }
+                    });
+                  },
                 )).toList(),
               ),
               const SizedBox(height: 16),

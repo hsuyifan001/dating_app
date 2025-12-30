@@ -54,6 +54,7 @@ class _ProfileViewPageState extends State<ProfileViewPage> {
     final gender = _data['gender'] as String? ?? '';
     final school = _data['school'] as String? ?? '';
     final selfIntro = _data['selfIntro'] as String? ?? '';
+    final department = _data['department'] as String? ?? '';
     final tags = List<String>.from(_data['tags'] ?? []);
 
     // build title block like in AccountPage but with a back arrow
@@ -196,6 +197,26 @@ class _ProfileViewPageState extends State<ProfileViewPage> {
                   height: h(30),
                   width: w(300),
                   child: AutoSizeText(
+                    '學系：${department.isNotEmpty ? department : '尚未填寫'}',
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 30,
+                      color: Colors.black,
+                    ),
+                    minFontSize: 16,
+                    overflow: TextOverflow.ellipsis,
+                    group: myGroup,
+                  ),
+                ),
+
+                SizedBox(height: h(8)),
+                
+                SizedBox(
+                  height: h(30),
+                  width: w(300),
+                  child: AutoSizeText(
                     '性別：${gender.isNotEmpty ? gender : '尚未填寫'}',
                     maxLines: 1,
                     style: const TextStyle(
@@ -211,6 +232,8 @@ class _ProfileViewPageState extends State<ProfileViewPage> {
                 ),
 
                 SizedBox(height: h(8)),
+
+                
 
                 SizedBox(
                   height: h(30),
