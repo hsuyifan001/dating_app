@@ -38,32 +38,107 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final navBarHeight = screenHeight / 10;
     return Scaffold(
       //appBar: AppBar(title: const Text('洋青椒')),
       body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: CustomBottomNavBar(
         currentIndex: _currentIndex,
-        selectedItemColor: Color.fromARGB(255, 100, 14, 89),
-        unselectedItemColor: Colors.grey,
-        backgroundColor: const Color.fromRGBO(255, 200, 202, 1), // ✅ 設定背景色
-        type: BottomNavigationBarType.fixed, // ✅ 加上這行才能套用背景色
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(icon: Image.asset('assets/story_icon.png', width: 79, height: 79), label: '動態'),
-          BottomNavigationBarItem(icon: Image.asset('assets/activity_icon.png', width: 79, height: 79), label: '活動'),
-          BottomNavigationBarItem(icon: Image.asset('assets/match_icon.png', width: 79, height: 79), label: '配對'),
-          BottomNavigationBarItem(icon: Image.asset('assets/chat_icon.png',  width: 79, height: 79), label: '聊天'),
-          BottomNavigationBarItem(icon: Image.asset('assets/person_profile_icon.png', width: 79, height: 79), label: '個人資料'),
-        ],
+        onTap: (index) => setState(() => _currentIndex = index),
+        height: navBarHeight,
+      ),
+    );
+  }
+}
+
+class CustomBottomNavBar extends StatelessWidget {
+  final int currentIndex;
+  final Function(int) onTap;
+  final double height;
+
+  const CustomBottomNavBar({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final itemWidth = screenWidth / 5;
+
+    return Container(
+      height: height,
+      color: const Color.fromRGBO(255, 200, 202, 1),
+      child: Row(
+        children: List.generate(5, (index) {
+          final isSelected = index == currentIndex;
+          return GestureDetector(
+            onTap: () => onTap(index),
+            child: Container(
+              width: itemWidth,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/${_getIconName(index)}.png',
+                    width: height * (160 / 264),
+                    height: height * (160 / 264),
+                  ),
+                  Text(
+                    _getLabel(index),
+                    style: TextStyle(
+                      color: isSelected ? const Color.fromARGB(255, 100, 14, 89) : Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
 
-  // 以下是創建虛擬使用者的程式
+  String _getIconName(int index) {
+    switch (index) {
+      case 0:
+        return 'story_icon';
+      case 1:
+        return 'activity_icon';
+      case 2:
+        return 'match_icon';
+      case 3:
+        return 'chat_icon';
+      case 4:
+        return 'person_profile_icon';
+      default:
+        return '';
+    }
+  }
+
+  String _getLabel(int index) {
+    switch (index) {
+      case 0:
+        return '動態';
+      case 1:
+        return '活動';
+      case 2:
+        return '配對';
+      case 3:
+        return '聊天';
+      case 4:
+        return '個人資料';
+      default:
+        return '';
+    }
+  }
+}
+
+// 以下是創建虛擬使用者的程式
   /*
   final List<String> tags = [
     '美食探險家', '咖啡因成癮', '酒精中毒', '需要\n新鮮的肝',
@@ -170,4 +245,4 @@ class _HomePageState extends State<HomePage> {
   }
   */
 
-}
+// }
