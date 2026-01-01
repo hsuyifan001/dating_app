@@ -765,19 +765,19 @@ class _MatchPageState extends State<MatchPage> {
     const figmaHeight = 917.0;
   
     // 名字方框在 figma 的位置與大小
-    const nameBoxLeft = 45.0;
-    const nameBoxTop = 480.0;
+    const nameBoxLeft = 30.0;
+    const nameBoxTop = 570.0;
     const nameBoxWidth = 180.0; // 原本是 128.0
     const nameBoxHeight = 54.0;
   
-    const tagBoxLeft = 45.0;
-    const tagBoxTop = 560.0;
-    const tagBoxWidth = 104.0; // 原本是 104.0
+    const tagBoxLeft = 30.0;
+    const tagBoxTop = 650.0;
+    const tagBoxWidth = 112.0; // 原本是 104.0
     const tagBoxHeight = 39.0; // 原本是 39.0
     const tagBoxHSpace = 8.0; // 水平間距
     const tagBoxVSpace = 9.0; // 垂直間距
     return Container(
-      color: const Color(0xFFE8FFFB), // 設定整個背景色
+      color: const Color(0xFFFFFFE3),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final screenWidth = constraints.maxWidth;
@@ -820,12 +820,23 @@ class _MatchPageState extends State<MatchPage> {
 
           return Stack(
             children: [
+              // 背景圖片
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Image.asset(
+                    'assets/dog_and_cat.png',
+                    fit: BoxFit.contain,
+                    alignment: Alignment.topCenter, // 或是用topCenter
+                  ),
+                ),
+              ),
+              
               //使用者照片
               Positioned(
-                left: bgLeft + bgWidth * (64.0 / figmaWidth),
+                left: bgLeft + bgWidth * (6.0 / figmaWidth),
                 top: bgTop + bgHeight * (126.0 / figmaHeight),
-                width: bgWidth * (287.0 / figmaWidth),
-                height: bgWidth * (287.0 / figmaWidth), // 保持正方形
+                width: bgWidth * (400.0 / figmaWidth),
+                height: bgHeight * (640.0 / figmaHeight),
                 child: GestureDetector(
                   onTap: users.isNotEmpty
                     ? () => _showUserDetail(  context,  Map<String, dynamic>.from(users[currentMatchIdx].data() as Map),)
@@ -845,17 +856,6 @@ class _MatchPageState extends State<MatchPage> {
                             'assets/match_default.jpg',
                             fit: BoxFit.cover,
                           ),
-                  ),
-                ),
-              ),
-              
-              // 背景圖片
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Image.asset(
-                    'assets/match_background.png',
-                    fit: BoxFit.contain,
-                    alignment: Alignment.topCenter,
                   ),
                 ),
               ),
@@ -936,10 +936,10 @@ class _MatchPageState extends State<MatchPage> {
 
               //叉叉按鈕
               Positioned(
-                left: bgLeft + bgWidth * (45.0 / figmaWidth),
-                top: bgTop + bgHeight * (701.0 / figmaHeight),
-                width: bgWidth * (124.0 / figmaWidth),
-                height: bgWidth * (124.0 / figmaWidth), // 用寬度比例確保圓形
+                left: bgLeft + bgWidth * (60.0 / figmaWidth),
+                top: bgTop + bgHeight * (790.0 / figmaHeight),
+                width: bgWidth * (104.0 / figmaWidth),
+                height: bgWidth * (104.0 / figmaWidth), // 用寬度比例確保圓形
                 child: GestureDetector(
                   onTap: users.isNotEmpty ? () => _handleDislike(users[currentMatchIdx].id) : null,
                   child: Container(
@@ -958,8 +958,8 @@ class _MatchPageState extends State<MatchPage> {
                     child: Center(
                       child: Image.asset(
                        'assets/no.png',
-                       width: bgWidth * (124.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
-                       height: bgWidth * (124.0 / figmaWidth) * 0.7,
+                       width: bgWidth * (104.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
+                       height: bgWidth * (104.0 / figmaWidth) * 0.7,
                        fit: BoxFit.contain,
                      ),
                     ),
@@ -970,9 +970,9 @@ class _MatchPageState extends State<MatchPage> {
               // 愛心按鈕
               Positioned(
                 left: bgLeft + bgWidth * (248.0 / figmaWidth),
-                top: bgTop + bgHeight * (701.0 / figmaHeight),
-                width: bgWidth * (124.0 / figmaWidth),
-                height: bgWidth * (124.0 / figmaWidth), // 用寬度比例確保圓形
+                top: bgTop + bgHeight * (790.0 / figmaHeight),
+                width: bgWidth * (104.0 / figmaWidth),
+                height: bgWidth * (104.0 / figmaWidth), // 用寬度比例確保圓形
                 child: GestureDetector(
                   onTap: users.isNotEmpty ? () => _handleLike(users[currentMatchIdx].id) : null,
                   child: Container(
@@ -991,8 +991,8 @@ class _MatchPageState extends State<MatchPage> {
                     child: Center(
                       child: Image.asset(
                         'assets/good.png',
-                        width: bgWidth * (124.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
-                        height: bgWidth * (124.0 / figmaWidth) * 0.7,
+                        width: bgWidth * (104.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
+                        height: bgWidth * (104.0 / figmaWidth) * 0.7,
                         fit: BoxFit.contain,
                       ),
                     ),
