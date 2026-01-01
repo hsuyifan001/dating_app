@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "137173225324",
+    "firebase_url": "https://datingappregister-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "datingappregister",
     "storage_bucket": "datingappregister.firebasestorage.app"
   },
@@ -151,6 +152,14 @@
           "android_info": {
             "package_name": "com.yandqingjiao.datingapp",
             "certificate_hash": "26bb1001c7598d3832b2eab8fabd39bf0bae0214"
+          }
+        },
+        {
+          "client_id": "137173225324-tpr6rdfqicsalkb48gmfrac750pno5pc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.yandqingjiao.datingapp",
+            "certificate_hash": "bebe8aef09299d7ecde42ddac3ba91ab4adcb1c5"
           }
         },
         {
