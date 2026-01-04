@@ -29,7 +29,6 @@ class _MatchPageState extends State<MatchPage> {
     _loadUsersFromFirebase();
   }
 
-  // 新增方法：從 Firebase 載入用戶
   Future<void> _loadUsersFromFirebase() async {
     if (user == null) return;
 
@@ -40,18 +39,56 @@ class _MatchPageState extends State<MatchPage> {
     final currentUserId = user!.uid;
     final now = DateTime.now();
     final todayKey = DateFormat('yyyyMMdd').format(now);
-    final matchDocRef = FirebaseFirestore.instance
+    final yesterday = now.subtract(const Duration(days: 1));
+    final yesterdayKey = DateFormat('yyyyMMdd').format(yesterday);
+
+    final matchDocRefToday = FirebaseFirestore.instance
         .collection('users')
         .doc(currentUserId)
         .collection('dailyMatches')
         .doc(todayKey);
 
-    try {
-      final matchDoc = await matchDocRef.get();
-      if (matchDoc.exists) {
-        final data = matchDoc.data() ?? {};
+    final matchDocRefYesterday = FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserId)
+        .collection('dailyMatches')
+        .doc(yesterdayKey);
+
+    // 重試邏輯
+    const int maxRetries = 3;
+    int retryCount = 0;
+    while (retryCount < maxRetries) {
+      try {
+        print('[Debug] 開始載入用戶資料 (重試次數: $retryCount)');
+        // 先檢查今天的
+        final matchDocToday = await matchDocRefToday.get();
+        print('[Debug] 今天的文檔是否存在: ${matchDocToday.exists}');
+        DocumentSnapshot matchDoc;
+        if (matchDocToday.exists) {
+          matchDoc = matchDocToday;
+          print('[Debug] 使用今天的資料');
+        } else {
+          // 如果沒有今天的，檢查昨天的
+          final matchDocYesterday = await matchDocRefYesterday.get();
+          print('[Debug] 昨天的文檔是否存在: ${matchDocYesterday.exists}');
+          if (matchDocYesterday.exists) {
+            matchDoc = matchDocYesterday;
+            print('[Debug] 使用昨天的資料');
+          } else {
+            // 如果昨天的也沒有，顯示空狀態
+            print('[Debug] 今天和昨天都沒有資料，顯示空狀態');
+            setState(() {
+              users = [];
+              isLoading = false;
+            });
+            return;
+          }
+        }
+
+        final data = (matchDoc.data() as Map<String, dynamic>?) ?? {};
         final userIds = List<String>.from(data['userIds'] ?? []);
         currentMatchIdx = data['currentMatchIdx'] ?? 0;
+        print('[Debug] 載入的用戶 ID 數量: ${userIds.length}, currentMatchIdx: $currentMatchIdx');
 
         if (userIds.isNotEmpty) {
           // 批次載入用戶資料
@@ -60,25 +97,35 @@ class _MatchPageState extends State<MatchPage> {
             users = userDocs;
             isLoading = false;
           });
+          print('[Debug] 成功載入 ${userDocs.length} 個用戶');
         } else {
           setState(() {
             users = [];
             isLoading = false;
           });
+          print('[Debug] 用戶 ID 列表為空');
         }
-      } else {
-        // 如果沒有 dailyMatches 文檔，顯示空狀態
-        setState(() {
-          users = [];
-          isLoading = false;
-        });
+        return; // 成功後退出
+      } catch (e) {
+        retryCount++;
+        print('[Debug] 載入用戶失敗 (重試次數: $retryCount): $e');
+        if (retryCount >= maxRetries) {
+          print('[Debug] 已達最大重試次數，顯示錯誤狀態');
+          setState(() {
+            users = [];
+            isLoading = false;
+          });
+          // 可選：顯示錯誤訊息給用戶
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('載入資料失敗，請檢查網路連線')),
+            );
+          }
+        } else {
+          // 等待一段時間後重試 (指數退避)
+          await Future.delayed(Duration(seconds: 1 << retryCount)); // 1s, 2s, 4s
+        }
       }
-    } catch (e) {
-      print('載入用戶失敗: $e');
-      setState(() {
-        users = [];
-        isLoading = false;
-      });
     }
   }
 
