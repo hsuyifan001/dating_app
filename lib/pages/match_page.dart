@@ -29,7 +29,6 @@ class _MatchPageState extends State<MatchPage> {
     _loadUsersFromFirebase();
   }
 
-  // 新增方法：從 Firebase 載入用戶
   Future<void> _loadUsersFromFirebase() async {
     if (user == null) return;
 
@@ -40,18 +39,56 @@ class _MatchPageState extends State<MatchPage> {
     final currentUserId = user!.uid;
     final now = DateTime.now();
     final todayKey = DateFormat('yyyyMMdd').format(now);
-    final matchDocRef = FirebaseFirestore.instance
+    final yesterday = now.subtract(const Duration(days: 1));
+    final yesterdayKey = DateFormat('yyyyMMdd').format(yesterday);
+
+    final matchDocRefToday = FirebaseFirestore.instance
         .collection('users')
         .doc(currentUserId)
         .collection('dailyMatches')
         .doc(todayKey);
 
-    try {
-      final matchDoc = await matchDocRef.get();
-      if (matchDoc.exists) {
-        final data = matchDoc.data() ?? {};
+    final matchDocRefYesterday = FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserId)
+        .collection('dailyMatches')
+        .doc(yesterdayKey);
+
+    // 重試邏輯
+    const int maxRetries = 3;
+    int retryCount = 0;
+    while (retryCount < maxRetries) {
+      try {
+        print('[Debug] 開始載入用戶資料 (重試次數: $retryCount)');
+        // 先檢查今天的
+        final matchDocToday = await matchDocRefToday.get();
+        print('[Debug] 今天的文檔是否存在: ${matchDocToday.exists}');
+        DocumentSnapshot matchDoc;
+        if (matchDocToday.exists) {
+          matchDoc = matchDocToday;
+          print('[Debug] 使用今天的資料');
+        } else {
+          // 如果沒有今天的，檢查昨天的
+          final matchDocYesterday = await matchDocRefYesterday.get();
+          print('[Debug] 昨天的文檔是否存在: ${matchDocYesterday.exists}');
+          if (matchDocYesterday.exists) {
+            matchDoc = matchDocYesterday;
+            print('[Debug] 使用昨天的資料');
+          } else {
+            // 如果昨天的也沒有，顯示空狀態
+            print('[Debug] 今天和昨天都沒有資料，顯示空狀態');
+            setState(() {
+              users = [];
+              isLoading = false;
+            });
+            return;
+          }
+        }
+
+        final data = (matchDoc.data() as Map<String, dynamic>?) ?? {};
         final userIds = List<String>.from(data['userIds'] ?? []);
         currentMatchIdx = data['currentMatchIdx'] ?? 0;
+        print('[Debug] 載入的用戶 ID 數量: ${userIds.length}, currentMatchIdx: $currentMatchIdx');
 
         if (userIds.isNotEmpty) {
           // 批次載入用戶資料
@@ -60,25 +97,35 @@ class _MatchPageState extends State<MatchPage> {
             users = userDocs;
             isLoading = false;
           });
+          print('[Debug] 成功載入 ${userDocs.length} 個用戶');
         } else {
           setState(() {
             users = [];
             isLoading = false;
           });
+          print('[Debug] 用戶 ID 列表為空');
         }
-      } else {
-        // 如果沒有 dailyMatches 文檔，顯示空狀態
-        setState(() {
-          users = [];
-          isLoading = false;
-        });
+        return; // 成功後退出
+      } catch (e) {
+        retryCount++;
+        print('[Debug] 載入用戶失敗 (重試次數: $retryCount): $e');
+        if (retryCount >= maxRetries) {
+          print('[Debug] 已達最大重試次數，顯示錯誤狀態');
+          setState(() {
+            users = [];
+            isLoading = false;
+          });
+          // 可選：顯示錯誤訊息給用戶
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('載入資料失敗，請檢查網路連線')),
+            );
+          }
+        } else {
+          // 等待一段時間後重試 (指數退避)
+          await Future.delayed(Duration(seconds: 1 << retryCount)); // 1s, 2s, 4s
+        }
       }
-    } catch (e) {
-      print('載入用戶失敗: $e');
-      setState(() {
-        users = [];
-        isLoading = false;
-      });
     }
   }
 
@@ -425,19 +472,19 @@ class _MatchPageState extends State<MatchPage> {
     const figmaHeight = 917.0;
   
     // 名字方框在 figma 的位置與大小
-    const nameBoxLeft = 45.0;
-    const nameBoxTop = 480.0;
+    const nameBoxLeft = 30.0;
+    const nameBoxTop = 570.0;
     const nameBoxWidth = 180.0; // 原本是 128.0
     const nameBoxHeight = 54.0;
   
-    const tagBoxLeft = 45.0;
-    const tagBoxTop = 560.0;
-    const tagBoxWidth = 104.0; // 原本是 104.0
+    const tagBoxLeft = 30.0;
+    const tagBoxTop = 650.0;
+    const tagBoxWidth = 112.0; // 原本是 104.0
     const tagBoxHeight = 39.0; // 原本是 39.0
     const tagBoxHSpace = 8.0; // 水平間距
     const tagBoxVSpace = 9.0; // 垂直間距
     return Container(
-      color: const Color(0xFFE8FFFB), // 設定整個背景色
+      color: const Color(0xFFFFFFE3),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final screenWidth = constraints.maxWidth;
@@ -480,12 +527,23 @@ class _MatchPageState extends State<MatchPage> {
 
           return Stack(
             children: [
+              // 背景圖片
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Image.asset(
+                    'assets/dog_and_cat.png',
+                    fit: BoxFit.contain,
+                    alignment: Alignment.topCenter, // 或是用topCenter
+                  ),
+                ),
+              ),
+              
               //使用者照片
               Positioned(
-                left: bgLeft + bgWidth * (64.0 / figmaWidth),
+                left: bgLeft + bgWidth * (6.0 / figmaWidth),
                 top: bgTop + bgHeight * (126.0 / figmaHeight),
-                width: bgWidth * (287.0 / figmaWidth),
-                height: bgWidth * (287.0 / figmaWidth), // 保持正方形
+                width: bgWidth * (400.0 / figmaWidth),
+                height: bgHeight * (640.0 / figmaHeight),
                 child: GestureDetector(
                   onTap: users.isNotEmpty
                     ? () => _showUserDetail(  context,  Map<String, dynamic>.from(users[currentMatchIdx].data() as Map),)
@@ -505,17 +563,6 @@ class _MatchPageState extends State<MatchPage> {
                             'assets/match_default.jpg',
                             fit: BoxFit.cover,
                           ),
-                  ),
-                ),
-              ),
-              
-              // 背景圖片
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Image.asset(
-                    'assets/match_background.png',
-                    fit: BoxFit.contain,
-                    alignment: Alignment.topCenter,
                   ),
                 ),
               ),
@@ -596,10 +643,10 @@ class _MatchPageState extends State<MatchPage> {
 
               //叉叉按鈕
               Positioned(
-                left: bgLeft + bgWidth * (45.0 / figmaWidth),
-                top: bgTop + bgHeight * (701.0 / figmaHeight),
-                width: bgWidth * (124.0 / figmaWidth),
-                height: bgWidth * (124.0 / figmaWidth), // 用寬度比例確保圓形
+                left: bgLeft + bgWidth * (60.0 / figmaWidth),
+                top: bgTop + bgHeight * (790.0 / figmaHeight),
+                width: bgWidth * (104.0 / figmaWidth),
+                height: bgWidth * (104.0 / figmaWidth), // 用寬度比例確保圓形
                 child: GestureDetector(
                   onTap: users.isNotEmpty ? () => _handleDislike(users[currentMatchIdx].id) : null,
                   child: Container(
@@ -618,8 +665,8 @@ class _MatchPageState extends State<MatchPage> {
                     child: Center(
                       child: Image.asset(
                        'assets/no.png',
-                       width: bgWidth * (124.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
-                       height: bgWidth * (124.0 / figmaWidth) * 0.7,
+                       width: bgWidth * (104.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
+                       height: bgWidth * (104.0 / figmaWidth) * 0.7,
                        fit: BoxFit.contain,
                      ),
                     ),
@@ -630,9 +677,9 @@ class _MatchPageState extends State<MatchPage> {
               // 愛心按鈕
               Positioned(
                 left: bgLeft + bgWidth * (248.0 / figmaWidth),
-                top: bgTop + bgHeight * (701.0 / figmaHeight),
-                width: bgWidth * (124.0 / figmaWidth),
-                height: bgWidth * (124.0 / figmaWidth), // 用寬度比例確保圓形
+                top: bgTop + bgHeight * (790.0 / figmaHeight),
+                width: bgWidth * (104.0 / figmaWidth),
+                height: bgWidth * (104.0 / figmaWidth), // 用寬度比例確保圓形
                 child: GestureDetector(
                   onTap: users.isNotEmpty ? () => _handleLike(users[currentMatchIdx].id) : null,
                   child: Container(
@@ -651,8 +698,8 @@ class _MatchPageState extends State<MatchPage> {
                     child: Center(
                       child: Image.asset(
                         'assets/good.png',
-                        width: bgWidth * (124.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
-                        height: bgWidth * (124.0 / figmaWidth) * 0.7,
+                        width: bgWidth * (104.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
+                        height: bgWidth * (104.0 / figmaWidth) * 0.7,
                         fit: BoxFit.contain,
                       ),
                     ),
