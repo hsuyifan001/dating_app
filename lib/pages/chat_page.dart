@@ -368,7 +368,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         .snapshots()
         .listen((doc) {
       if (doc.exists) {
-        final data = doc.data() as Map<String, dynamic>? ?? {};
+        final data = doc.data() ?? {};
         setState(() {
           _displayPhotos = (data['displayPhotos'] as Map<String, dynamic>?) ?? _displayPhotos;
           _isBlocked = data['block'] == true;
@@ -440,7 +440,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   void sendMessage() async {
     final text = messageController.text.trim();
     messageController.clear();
-    FocusScope.of(context).unfocus();
     if (text.isEmpty) return;
 
     // 若聊天室被封鎖，阻止發送
@@ -498,6 +497,20 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           );
         }
       }
+
+      // 滾動到最下面
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+
+      // 收起鍵盤
+      FocusScope.of(context).unfocus();
     } catch (e) {
       print('發送訊息或通知失敗: $e');
       // if (context.mounted) {
@@ -640,7 +653,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       final chatRef = FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId);
       final chatDoc = await chatRef.get();
       if (!chatDoc.exists) return;
-      final data = chatDoc.data() as Map<String, dynamic>? ?? {};
+      final data = chatDoc.data() ?? {};
       final members = List<String>.from(data['members'] ?? []);
 
       // 更新 chat doc 的 block 布林值
@@ -665,7 +678,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       final chatRef = FirebaseFirestore.instance.collection('chats').doc(widget.chatRoomId);
       final chatDocSnap = await chatRef.get();
       if (!chatDocSnap.exists) return;
-      final data = chatDocSnap.data() as Map<String, dynamic>? ?? {};
+      final data = chatDocSnap.data() ?? {};
       final members = List<String>.from(data['members'] ?? []);
 
       // 移除當前使用者
@@ -1104,21 +1117,23 @@ Future<void> _submitReport(
                             return msgTempId == null || !_localTempMessages.any((tempMsg) => tempMsg['tempId'] == msgTempId);
                           }),
                           ..._localTempMessages,
-                        ];
+                        ].reversed.toList();
 
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_scrollController.hasClients && allMessages.isNotEmpty) {
-                            _scrollController.animateTo(
-                              _scrollController.position.maxScrollExtent,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeOut,
-                            );
-                          }
-                        });
+                        if (allMessages.isNotEmpty) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            // 延遲跳轉，以等待鍵盤收回後的布局穩定
+                            Future.delayed(const Duration(milliseconds: 600), () {
+                              if (_scrollController.hasClients) {
+                                _scrollController.jumpTo(0.0);
+                              }
+                            });
+                          });
+                        }
 
                         return ListView.builder(
                           controller: _scrollController,
                           padding: const EdgeInsets.all(8),
+                          reverse: true,
                           itemCount: allMessages.length,
                           itemBuilder: (context, index) {
                             final msg = allMessages[index];
@@ -1126,10 +1141,10 @@ Future<void> _submitReport(
                             final isMe = msg['sender'] == currentUser!.uid;
                             final type = msg['type'] ?? 'text';
 
-                            final bool sameAsPrev = index > 0 &&
-                                allMessages[index - 1]['sender'] == msg['sender'];
-                            final bool sameAsNext = index < allMessages.length - 1 &&
+                            final bool sameAsPrev = index < allMessages.length - 1 &&
                                 allMessages[index + 1]['sender'] == msg['sender'];
+                            final bool sameAsNext = index > 0 &&
+                                allMessages[index - 1]['sender'] == msg['sender'];
 
                             final bool showAvatar = !isMe && !sameAsNext;
 
