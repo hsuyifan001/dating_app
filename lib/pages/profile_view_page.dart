@@ -113,19 +113,61 @@ class _ProfileViewPageState extends State<ProfileViewPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: w(102),
-                height: w(102),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color.fromRGBO(255, 200, 202, 1),
-                    width: 5,
+              GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => Dialog(
+                      backgroundColor: Colors.transparent,
+                      insetPadding: const EdgeInsets.all(10),
+                      child: Stack(
+                        children: [
+                          InteractiveViewer(
+                            child: Image(
+                              image: (photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : const AssetImage('assets/match_default.jpg'),
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          Positioned(
+                            right: 4,
+                            top: 4,
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.of(context).pop();
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(4),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: w(102),
+                  height: w(102),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color.fromRGBO(255, 200, 202, 1),
+                      width: 5,
+                    ),
                   ),
-                ),
-                child: CircleAvatar(
-                  backgroundImage: (photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : const AssetImage('assets/match_default.jpg') as ImageProvider,
-                  backgroundColor: Colors.transparent,
+                  child: CircleAvatar(
+                    backgroundImage: (photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : const AssetImage('assets/match_default.jpg') as ImageProvider,
+                    backgroundColor: Colors.transparent,
+                  ),
                 ),
               ),
 
