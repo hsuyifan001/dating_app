@@ -34,7 +34,7 @@ class _StoryPageState extends State<StoryPage> {
   final ScrollController _scrollController = ScrollController(); //**
   DocumentSnapshot? lastStoryDoc; //** 上次抓取的最後一個 story，用於分頁
   bool isLoadingMore = false; //** 是否正在加載更多 stories
-  final int pageSize = 15; //** 每次抓取數量
+  final int pageSize = 5; //** 每次抓取數量
 
   @override
   void initState() {

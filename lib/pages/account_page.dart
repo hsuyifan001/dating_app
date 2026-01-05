@@ -588,7 +588,27 @@ class _AccountPageState extends State<AccountPage> {
                 ),
 
               SizedBox(height: h(8)),
-                
+
+              SizedBox(
+                  height: h(30),
+                  width: w(300),
+                  child: AutoSizeText(
+                    '在學狀態：${educationLevels!='' ? educationLevels : '尚未填寫'}',
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontFamily: 'Kiwi Maru',
+                      fontWeight: FontWeight.w500,
+                      fontSize: 30,
+                      color: Colors.black,
+                    ),
+                    minFontSize: 16,
+                    overflow: TextOverflow.ellipsis,
+                    group: myGroup,
+                  ),
+                ),
+
+              SizedBox(height: h(8)),
+
               SizedBox(
                 height: h(30),
                 width: w(300),
@@ -630,20 +650,21 @@ class _AccountPageState extends State<AccountPage> {
               SizedBox(height: h(8)),
 
               SizedBox(
-                height: h(100), // 自我介紹內容可以用較高高度因字數較多
+                height: h(100),
                 width: w(300),
-                child: AutoSizeText(
-                  '$selfIntro${selfIntro.isNotEmpty ? '' : '尚未填寫'}',
-                  
-                  style: const TextStyle(
+                child: SingleChildScrollView(
+                  child: AutoSizeText(
+                    '${selfIntro.isNotEmpty ? selfIntro : '尚未填寫'}',
+                    style: const TextStyle(
                       fontSize: 20,
                       color: Colors.black87,
                       fontWeight: FontWeight.w500,
                     ),
-                  minFontSize: 16,
-                  overflow: TextOverflow.ellipsis,
+                    minFontSize: 16,
+                  ),
                 ),
-              ),
+              )
+
             ],
           ),
         ),
