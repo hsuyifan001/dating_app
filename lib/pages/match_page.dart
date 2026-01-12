@@ -38,9 +38,8 @@ class _MatchPageState extends State<MatchPage> {
 
     final currentUserId = user!.uid;
     final now = DateTime.now();
-    final todayKey = DateFormat('yyyyMMdd').format(now);
-    final yesterday = now.subtract(const Duration(days: 1));
-    final yesterdayKey = DateFormat('yyyyMMdd').format(yesterday);
+    final effectiveDate = now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
+    final todayKey = DateFormat('yyyyMMdd').format(effectiveDate);
 
     final matchDocRefToday = FirebaseFirestore.instance
         .collection('users')
@@ -48,44 +47,25 @@ class _MatchPageState extends State<MatchPage> {
         .collection('dailyMatches')
         .doc(todayKey);
 
-    final matchDocRefYesterday = FirebaseFirestore.instance
-        .collection('users')
-        .doc(currentUserId)
-        .collection('dailyMatches')
-        .doc(yesterdayKey);
-
     // 重試邏輯
     const int maxRetries = 3;
     int retryCount = 0;
     while (retryCount < maxRetries) {
       try {
         print('[Debug] 開始載入用戶資料 (重試次數: $retryCount)');
-        // 先檢查今天的
-        final matchDocToday = await matchDocRefToday.get();
-        print('[Debug] 今天的文檔是否存在: ${matchDocToday.exists}');
-        DocumentSnapshot matchDoc;
-        if (matchDocToday.exists) {
-          matchDoc = matchDocToday;
-          print('[Debug] 使用今天的資料');
-        } else {
-          // 如果沒有今天的，檢查昨天的
-          final matchDocYesterday = await matchDocRefYesterday.get();
-          print('[Debug] 昨天的文檔是否存在: ${matchDocYesterday.exists}');
-          if (matchDocYesterday.exists) {
-            matchDoc = matchDocYesterday;
-            print('[Debug] 使用昨天的資料');
-          } else {
-            // 如果昨天的也沒有，顯示空狀態
-            print('[Debug] 今天和昨天都沒有資料，顯示空狀態');
-            setState(() {
-              users = [];
-              isLoading = false;
-            });
-            return;
-          }
+        final matchDoc = await matchDocRefToday.get();
+        print('[Debug] 文檔是否存在: ${matchDoc.exists}');
+        if (!matchDoc.exists) {
+          print('[Debug] 沒有資料，顯示空狀態');
+          setState(() {
+            users = [];
+            isLoading = false;
+          });
+          return;
         }
+        print('[Debug] 使用資料');
 
-        final data = (matchDoc.data() as Map<String, dynamic>?) ?? {};
+        final data = matchDoc.data() ?? {};
         final userIds = List<String>.from(data['userIds'] ?? []);
         currentMatchIdx = data['currentMatchIdx'] ?? 0;
         print('[Debug] 載入的用戶 ID 數量: ${userIds.length}, currentMatchIdx: $currentMatchIdx');
@@ -151,7 +131,9 @@ class _MatchPageState extends State<MatchPage> {
 
   Future<void> _showNextUser() async {
     final currentUserId = user!.uid;
-    final todayKey = DateFormat('yyyyMMdd').format(DateTime.now());
+    final now = DateTime.now();
+    final effectiveDate = now.hour < 5 ? now.subtract(const Duration(days: 1)) : now;
+    final todayKey = DateFormat('yyyyMMdd').format(effectiveDate);
     final matchDocRef = FirebaseFirestore.instance
         .collection('users')
         .doc(currentUserId)

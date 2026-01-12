@@ -36,7 +36,7 @@ export const sendNotification = onCall(async (request) => {
 // 每日配對更新 function
 export const dailyMatchUpdate = onSchedule(
   {
-    schedule: "0 5 * * *", // 每天台灣時間 05:00 觸發
+    schedule: "0 4 * * *", // 每天台灣時間 04:00 觸發
     timeZone: "Asia/Taipei",
     memory: "1GiB", // 1GiB 記憶體，足夠存放數萬名使用者的資料快取
     timeoutSeconds: 540, // 9 分鐘超時設定，允許處理大量數據
