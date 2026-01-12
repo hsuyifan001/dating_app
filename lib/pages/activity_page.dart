@@ -669,8 +669,14 @@ class _ActivityPageState extends State<ActivityPage> {
 
   @override
   Widget build(BuildContext context) {
-    
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    const baseWidth = 412.0;
+    const baseHeight = 917.0;
+    double w(double value) => value * screenWidth / baseWidth;
+    double h(double value) => value * screenHeight / baseHeight;
+    double baseFontSize = MediaQuery.of(context).size.width < 360 ? 14 : 18;
 
     final String imageUrl = activity?['imageUrl'] ?? '';
     final String title = activity?['title'] ?? '目前沒有最新活動';
@@ -692,285 +698,283 @@ class _ActivityPageState extends State<ActivityPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFCD3F8F3),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final screenWidth = constraints.maxWidth;
-          final screenHeight = constraints.maxHeight;
+      body: SafeArea(
+        child: Column(
+          children: [
 
-          // 計算背景圖呈現範圍
-          final bgAspect = figmaWidth / figmaHeight;
-          final screenAspect = screenWidth / screenHeight;
-
-          double bgWidth, bgHeight, bgLeft, bgTop;
-          if (screenAspect > bgAspect) {
-            // 螢幕比較寬 → 高度填滿，上下對齊
-            bgHeight = screenHeight;
-            bgWidth = bgHeight * bgAspect;
-            bgLeft = (screenWidth - bgWidth) / 2;
-            bgTop = 35;
-          } else {
-            // 螢幕比較窄 → 寬度填滿，左右對齊
-            bgWidth = screenWidth;
-            bgHeight = bgWidth / bgAspect;
-            bgLeft = 0;
-            bgTop = (screenHeight - bgHeight) / 2+30;
-          }
-
-          // 封裝換算工具（把 Figma 上的座標轉成實際螢幕 px）
-          double fw(double px) => bgWidth * (px / figmaWidth);
-          double fh(double px) => bgHeight * (px / figmaHeight);
-          double fx(double px) => bgLeft + bgWidth * (px / figmaWidth);
-          double fy(double px) => bgTop + bgHeight * (px / figmaHeight);
-          double baseFontSize = MediaQuery.of(context).size.width < 360 ? 14 : 18;
-
-
-          return Stack(
-            children: [
-              
-              // 創建活動按鈕
-              Positioned(
-                left: fx(272),
-                top: fy(10),
-                width: fw(131),
-                height: fh(48),
-                child: ElevatedButton(
-                  onPressed: _showCreateActivityDialog, // 觸發懸浮視窗
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromRGBO(246, 219, 220, 1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: const BorderSide(color: Colors.black, width: 2),
+            /// ====== 上方列（創建活動） ======
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start, // 從左邊開始排
+                children: [
+                  SizedBox(width: w(300)), // 與左邊距離 50
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _showCreateActivityDialog,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF6DBDC),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: const BorderSide(color: Colors.black, width: 2),
+                        ),
+                      ),
+                      child: const Text(
+                        '創建活動',
+                        style: TextStyle(
+                          fontFamily: 'Kiwi Maru',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black,
+                        ),
+                      ),
                     ),
                   ),
-                  child:FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: const Text(
-                      "創建活動",
-                      style: const TextStyle(
-                        fontFamily: 'Kiwi Maru',
-                        fontWeight: FontWeight.w500,
-                        fontSize: 20,
-                        color: Colors.black,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-
-                    ),
-                  )
-                  
-                ),
+                ],
               ),
+            ),
 
-              // 活動圖片
-              Positioned(
-                left: fx(70),
-                top: fy(110),
-                width: fw(290),
-                height: fh(340),
-                child: title=='目前沒有最新活動'? Image.asset('assets/no_activity.jpg',fit: BoxFit.contain,) 
-                    : imageUrl == null || imageUrl.isEmpty
-                        ? Image.asset(
-                            'assets/activity_default.jpg',
-                            fit: BoxFit.contain,
-                          )
-                        : Image.network(
-                            imageUrl,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              // 網路圖片抓取失敗時，顯示預設圖片
-                              return Image.asset(
-                                'assets/activity_default.jpg',
-                                fit: BoxFit.contain,
-                              );
-                            },
-                          ),
-              ),
+            /// ====== 主內容 ======
+            Expanded(
+              child: Column(
+                children: [
 
-              Positioned(
-                left: fx(0),  // 適當調整
-                top: fy(530),
-                width: fw(424),
-                height: fh(217),
-                child: Stack(
-                  children: [
-                    Image.asset(
-                      "assets/activity_detail.png",
-                      fit: BoxFit.fill,
-                      width: fw(424),
-                      height: fh(217),
-                    ),
-                    // 文字區容器，限定寬高以確保滾動範圍
-                    Positioned(
-                      left: fw(40),
-                      top: fh(30),
-                      width: fw(350), 
-                      height: fh(157),  // 略小於整體高度留下padding
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          
-                          children: [
-                            // 使用 AutoSizeText 替代 Text，方便縮放字體
-                            if (title.isNotEmpty)
-                              AutoSizeText(
-                                title,
-                                style: TextStyle(fontSize: baseFontSize,fontWeight: FontWeight.bold),
-                                minFontSize: 8,
-                                maxFontSize: baseFontSize,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            if (date.isNotEmpty)
-                              AutoSizeText(
-                                '日期：$date',
-                                style:  TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
-                                maxLines: 1,
-                                minFontSize: 10,
-                                maxFontSize: baseFontSize,
-                              ),
-                            if (source.isNotEmpty)
-                              AutoSizeText(
-                                '來源：$source',
-                                style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
-                                maxLines: 1,
-                                minFontSize: 10,
-                                maxFontSize: baseFontSize,
-                              ),
-                            if (location.isNotEmpty)
-                              AutoSizeText(
-                                '地點：$location',
-                                style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
-                                maxLines: 1,
-                                minFontSize: 10,
-                                maxFontSize: baseFontSize,
-                              ),
-                            if (description.isNotEmpty)
-                              AutoSizeText(
-                                '說明：$description',
-                                style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
-                                minFontSize: 10,
-                                maxFontSize: baseFontSize,
-                              ),
-                            const SizedBox(height: 6),
-                            if (url.isNotEmpty)
-                              GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onTap: () => _launchURL(context, url),
-                                child: AutoSizeText(
-                                  '更多資訊連結',
-                                  style: TextStyle(
-                                    fontSize: baseFontSize,
-                                    color: Colors.blue,
-                                    decoration: TextDecoration.underline,
+                  /// 活動圖片卡
+                  SizedBox(
+                    height: h(588), // 控制整張卡高度
+                    width: w(377),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                        
+                          /// ====== 活動圖片 ======
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(34),
+                            child: imageUrl.isEmpty
+                                ? Image.asset(
+                                    'assets/activity_default.jpg',
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.network(
+                                    imageUrl,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) {
+                                      return Image.asset(
+                                        'assets/activity_default.jpg',
+                                        fit: BoxFit.cover,
+                                      );
+                                    },
                                   ),
-                                  minFontSize: 10,
-                                  maxFontSize: baseFontSize,
-                                ),
+                          ),
+
+                          /// ====== 疊在圖片上的內容 ======
+                          Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                left: 16,
+                                right: 16,
+                                bottom: 16,
                               ),
-                          ],
-                        ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch, // 讓 Align 生效
+                                children: [
+                                
+                                  /// ====== 活動名稱（靠右） ======
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Container(
+                                      width: w(150),
+                                      height: h(54),
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 15,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: const Color(0xFF81BDC3),
+                                          width: 3,
+                                        ),
+                                      ),
+                                      child: AutoSizeText(
+                                        title,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontFamily: 'Kiwi Maru',
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        minFontSize: 12,   // 最小字體大小，可自行調整
+                                        maxFontSize: 25,   // 最大字體大小
+                                        stepGranularity: 1, // 字體縮放的步進值
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 12),
+
+                                  /// ====== 活動資訊卡（置中） ======
+                                  Align(
+                                    alignment: Alignment.center,
+                                    child: Container(
+                                      height: h(150),
+                                      width: double.infinity, // 如果你想要「不要太寬」可以改成固定寬
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(34),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.25),
+                                            spreadRadius: 5,
+                                          ),
+                                        ],
+                                      ),
+                                      child: SingleChildScrollView(
+                                        physics: const BouncingScrollPhysics(),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                          if (title.isNotEmpty)
+                                            AutoSizeText(
+                                              title,
+                                              style: TextStyle(fontSize: baseFontSize,fontWeight: FontWeight.bold),
+                                              minFontSize: 8,
+                                              maxFontSize: baseFontSize,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          if (date.isNotEmpty)
+                                            AutoSizeText(
+                                              '日期：$date',
+                                              style:  TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                              maxLines: 1,
+                                              minFontSize: 10,
+                                              maxFontSize: baseFontSize,
+                                            ),
+                                          if (source.isNotEmpty)
+                                            AutoSizeText(
+                                              '來源：$source',
+                                              style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                              maxLines: 1,
+                                              minFontSize: 10,
+                                              maxFontSize: baseFontSize,
+                                            ),
+                                          if (location.isNotEmpty)
+                                            AutoSizeText(
+                                              '地點：$location',
+                                              style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                              maxLines: 1,
+                                              minFontSize: 10,
+                                              maxFontSize: baseFontSize,
+                                            ),
+                                          if (description.isNotEmpty)
+                                            AutoSizeText(
+                                              '說明：$description',
+                                              style: TextStyle(fontSize: baseFontSize, fontWeight: FontWeight.w500),
+                                              minFontSize: 10,
+                                              maxFontSize: baseFontSize,
+                                            ),
+                                          const SizedBox(height: 6),
+                                          if (url.isNotEmpty)
+                                            GestureDetector(
+                                              behavior: HitTestBehavior.translucent,
+                                              onTap: () => _launchURL(context, url),
+                                              child: AutoSizeText(
+                                                '更多資訊連結',
+                                                style: TextStyle(
+                                                  fontSize: baseFontSize,
+                                                  color: Colors.blue,
+                                                  decoration: TextDecoration.underline,
+                                                ),
+                                                minFontSize: 10,
+                                                maxFontSize: baseFontSize,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-
-              // 背景圖
-              Positioned(
-                left: bgLeft,
-                top: bgTop,
-                width: bgWidth,
-                height: bgHeight,
-                child: IgnorePointer(
-                  child: Image.asset(
-                    "assets/activity_background.png",
-                    fit: BoxFit.contain,
                   ),
-                ),
-              ),
 
-              // 活動名稱文字框
-              Positioned(
-                left: fx(181.09),
-                top: fy(470),
-                width: fw(218),
-                height: fh(54),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color.fromRGBO(129, 189, 195, 1), width: 3),
-                  ),
-                  child: Center(
-                    child: AutoSizeText(
-                      "  "+title,
-                      style: const TextStyle(
-                        fontFamily: 'Kiwi Maru',
-                        fontWeight: FontWeight.w500,
-                        fontSize: 25,
-                        color: Colors.black,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      minFontSize: 12,   // 設定字體縮放的最小尺寸，避免裁切
-                    ),
-                  ),
-                ),
-              ),
 
-              // 愛心按鈕
-              Positioned(
-                left: fx(244.14),
-                top: fy(744.04),
-                width: fw(114.57),
-                height: fh(112.72),
-                child: Container(
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black26, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                  const SizedBox(height: 12),
+
+                  /// 叉叉 / 愛心
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      SizedBox(
+                        width: w(112),
+                        height: h(112),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.black26, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                            ),
+                          child: IconButton(
+                            onPressed:  _dislikeActivity,
+                            icon: Image.asset("assets/no.png"),
+                          ),
                         ),
-                      ],
-                    ),
-                  child: IconButton(
-                    onPressed:  _likeActivity,
-                    icon: Image.asset("assets/heart.png"),
-                  ),
-                ),
-              ),
-
-              // 叉叉按鈕
-              Positioned(
-                left: fx(56.57),
-                top: fy(744.04),
-                width: fw(114),
-                height: fh(112),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black26, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                      ),
+                      SizedBox(
+                        width: w(112),
+                        height: h(112),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.black26, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                            ),
+                          child: IconButton(
+                            onPressed:  _likeActivity,
+                            icon: Image.asset("assets/good.png"),
+                          ),
+                        ),
                       ),
                     ],
-                    ),
-                  child: IconButton(
-                    onPressed:  _dislikeActivity,
-                    icon: Image.asset("assets/no.png"),
                   ),
-                ),
+                ],
               ),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
       ),
     );
   }
