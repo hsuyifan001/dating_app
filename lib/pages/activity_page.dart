@@ -706,9 +706,9 @@ class _ActivityPageState extends State<ActivityPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.start, // 從左邊開始排
+                mainAxisAlignment: MainAxisAlignment.end, // 從左邊開始排
                 children: [
-                  SizedBox(width: w(300)), // 與左邊距離 50
+                  //SizedBox(width: w(300)), // 與左邊距離 50
                   SizedBox(
                     height: 48,
                     child: ElevatedButton(
@@ -795,7 +795,7 @@ class _ActivityPageState extends State<ActivityPage> {
                                       width: w(150),
                                       height: h(54),
                                       padding: EdgeInsets.symmetric(
-                                        vertical: 15,
+                                        vertical: h(15),
                                       ),
                                       decoration: BoxDecoration(
                                         color: Colors.white,
@@ -815,7 +815,7 @@ class _ActivityPageState extends State<ActivityPage> {
                                           fontSize: 25,
                                           fontWeight: FontWeight.w500,
                                         ),
-                                        minFontSize: 12,   // 最小字體大小，可自行調整
+                                        minFontSize: 10,   // 最小字體大小，可自行調整
                                         maxFontSize: 25,   // 最大字體大小
                                         stepGranularity: 1, // 字體縮放的步進值
                                       ),
