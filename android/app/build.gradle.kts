@@ -29,7 +29,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "11"
     }
 
     defaultConfig {
@@ -75,6 +75,8 @@ flutter {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+
     // add the Firebase SDK for Google Analytics
     implementation("com.google.firebase:firebase-analytics:17.4.1")
     // add SDKs for any other desired Firebase products

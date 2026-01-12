@@ -10,6 +10,7 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'dart:typed_data';
+import '../utils/notification_util.dart';
 
 
 class StoryPage extends StatefulWidget {
@@ -435,6 +436,27 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
 
     // 🔹 非同步更新 Firebase
     _updateLikeInFirebase(userId, storyId, likes);
+
+    // 📬 發送按讚門檻通知（非自己按自己的貼文）
+    try {
+      if (!hasLiked && userId != currentUser.uid) {
+        // 按讚門檻列表
+        const thresholds = [1, 5, 15, 30, 50, 100];
+        final newLikeCount = likes.length;
+        
+        if (thresholds.contains(newLikeCount)) {
+          sendPushNotification(
+            fromUserId: currentUser.uid,
+            targetUserId: userId,
+            title: '你的動態獲得 $newLikeCount 個讚',
+            body: '你的貼文達成 $newLikeCount 個讚，快去看看最新的互動吧！',
+            data: {'storyId': storyId, 'likeCount': newLikeCount.toString()},
+          );
+        }
+      }
+    } catch (e) {
+      // 忽略推播錯誤，不影響 UI
+    }
   }
 
   // 隱藏 story：把 storyId 寫入 users/{me}/hiddenStories/{storyId}
@@ -782,6 +804,35 @@ void _openAddStoryDialog({String? storyId, Map<String, dynamic>? existingData}) 
                             'text': text,
                             'timestamp': FieldValue.serverTimestamp(),
                           });
+
+                          // 發送留言通知給貼文擁有者（若留言者不是自己）
+                          try {
+                            if (currentUser.uid != storyOwnerId) {
+                              // 取得留言者資訊
+                              final commenterDoc = await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(currentUser.uid)
+                                  .get();
+                              final commenterData = commenterDoc.data() as Map<String, dynamic>?;
+                              final commenterName = commenterData?['name'] ?? '使用者';
+                              final commenterPhotoUrl = commenterData?['photoUrl'] ?? '';
+
+                              sendPushNotification(
+                                fromUserId: currentUser.uid,
+                                targetUserId: storyOwnerId,
+                                title: '$commenterName 留言了你的動態',
+                                body: text.length > 80 ? '${text.substring(0, 80)}...' : text,
+                                data: {
+                                  'storyId': storyId,
+                                  'commenterName': commenterName,
+                                  'commenterPhotoUrl': commenterPhotoUrl,
+                                  'commentText': text,
+                                },
+                              );
+                            }
+                          } catch (e) {
+                            // 忽略推播錯誤
+                          }
                         },
                       ),
                     )

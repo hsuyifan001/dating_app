@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart'; // 用來格式化日期，需在pubspec.yaml加入 intl 套件
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'dart:io';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+
 
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key});
@@ -87,15 +92,7 @@ class _ActivityPageState extends State<ActivityPage> {
 
         return StatefulBuilder(
           builder: (context, setState) {
-            Future<void> _pickImage() async {
-              final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70); // 壓縮
-              if (image != null) {
-                setState(() {
-                  pickedImage = image;
-                });
-              }
-            }
-
+            
             Future<void> _pickDateTime() async {
               final now = DateTime.now();
               final date = await showDatePicker(
@@ -117,11 +114,56 @@ class _ActivityPageState extends State<ActivityPage> {
               }
             }
 
+            Future<void> _pickImage() async {
+              final image = await picker.pickImage(
+                source: ImageSource.gallery,
+                imageQuality: 100,
+              );
+            
+              if (image == null) return;
+            
+              final croppedFile = await ImageCropper().cropImage(
+                sourcePath: image.path,
+                aspectRatio: const CropAspectRatio(ratioX: 377, ratioY: 586),
+                compressQuality: 70,
+                uiSettings: [
+                  AndroidUiSettings(
+                    toolbarTitle: '裁切圖片',
+                    toolbarColor: Colors.black,
+                    toolbarWidgetColor: Colors.white,
+                    lockAspectRatio: true,
+                  ),
+                  IOSUiSettings(
+                    title: '裁切圖片',
+                    aspectRatioLockEnabled: true,
+                  ),
+                ],
+              );
+            
+              if (croppedFile != null) {
+                // 把檔案移到永久目錄
+                final appDir = await getApplicationDocumentsDirectory();
+                final fileName = path.basename(croppedFile.path);
+                final savedImage = await File(croppedFile.path).copy('${appDir.path}/$fileName');
+            
+                setState(() {
+                  pickedImage = XFile(savedImage.path);
+                });
+              }
+            }
+
+
+            final screenWidth = MediaQuery.of(context).size.width;
+            final screenHeight = MediaQuery.of(context).size.height;
+            const baseWidth = 412.0;
+            const baseHeight = 917.0;
+            double w(double value) => value * screenWidth / baseWidth;
+            double h(double value) => value * screenHeight / baseHeight;
             return AlertDialog(
               title: const Text('創建活動'),
               content: SizedBox(
-                width: 400,
-                height: 500, // ✅ 固定 Dialog 高度
+                width: w(400),
+                height: h(500), // ✅ 固定 Dialog 高度
                 child:SingleChildScrollView(
                   child: Form(
                     key: _formKey,
@@ -182,8 +224,8 @@ class _ActivityPageState extends State<ActivityPage> {
                         const SizedBox(height: 10),
                         // 活動說明 ✅ 改這裡
                         SizedBox(
-                          height: 100, // 限制輸入框高度
-                          width: 400,
+                          height: h(100), // 限制輸入框高度
+                          width: w(400),
                           child: TextFormField(
                             decoration: const InputDecoration(labelText: '活動說明'),
                             onSaved: (value) => description = value,
@@ -199,6 +241,8 @@ class _ActivityPageState extends State<ActivityPage> {
                             },
                           ),
                         ),
+                        
+                        const SizedBox(height: 10),
                         // 建立群組人數
                         TextFormField(
                           decoration: const InputDecoration(labelText: '建立群組人數'),
