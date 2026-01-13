@@ -14,19 +14,50 @@ class MatchPage extends StatefulWidget {
   State<MatchPage> createState() => _MatchPageState();
 }
 
-class _MatchPageState extends State<MatchPage> {
+class _MatchPageState extends State<MatchPage> with TickerProviderStateMixin {
   final user = FirebaseAuth.instance.currentUser;
   List<DocumentSnapshot> users = [];
   bool isLoading = true;
   bool isProcessing = false; // 防止連續點擊的變數
   // bool reachDailyLimit = false;
   int currentMatchIdx = 0;
+  
+  // 簡單的放大動畫
+  late AnimationController _likeScaleController;
+  late AnimationController _likeMoveController;
+  late Animation<double> _likeScale;
+  late Animation<double> _likeMoveProgress;
+  bool _showLikeAnimation = false;
+  bool _showLikeMoveAnimation = false;
 
   @override
   void initState() {
     super.initState();
-    // _loadUsers();
+    // 初始化簡單的放大動畫
+    _likeScaleController = AnimationController(
+      duration: const Duration(milliseconds: 900),
+      vsync: this,
+    );
+    
+    _likeScale = Tween<double>(begin: 0.5, end: 3).animate(
+      CurvedAnimation(parent: _likeScaleController, curve: Curves.elasticOut),
+    );
+    
+    _likeScaleController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        setState(() {
+          _showLikeAnimation = false;
+        });
+      }
+    });
+    
     _loadUsersFromFirebase();
+  }
+
+  @override
+  void dispose() {
+    _likeScaleController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUsersFromFirebase() async {
@@ -156,7 +187,11 @@ class _MatchPageState extends State<MatchPage> {
     if (isProcessing) return; // 如果正在處理，直接返回
     setState(() {
       isProcessing = true; // 設定為正在處理
+      _showLikeAnimation = true; // 顯示放大動畫
     });
+    
+    // 啟動動畫
+    _likeScaleController.forward(from: 0.0);
     
     final firestore = FirebaseFirestore.instance;
     final currentUserId = user!.uid;
@@ -662,30 +697,46 @@ class _MatchPageState extends State<MatchPage> {
                 top: bgTop + bgHeight * (790.0 / figmaHeight),
                 width: bgWidth * (104.0 / figmaWidth),
                 height: bgWidth * (104.0 / figmaWidth), // 用寬度比例確保圓形
-                child: GestureDetector(
-                  onTap: users.isNotEmpty ? () => _handleLike(users[currentMatchIdx].id) : null,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black26, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: users.isNotEmpty ? () => _handleLike(users[currentMatchIdx].id) : null,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black26, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Image.asset(
-                        'assets/good.png',
-                        width: bgWidth * (104.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
-                        height: bgWidth * (104.0 / figmaWidth) * 0.7,
-                        fit: BoxFit.contain,
+                        child: Center(
+                          child: Image.asset(
+                            'assets/good.png',
+                            width: bgWidth * (104.0 / figmaWidth) * 0.7, // 70% 按鈕直徑
+                            height: bgWidth * (104.0 / figmaWidth) * 0.7,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    // 簡單放大動畫
+                    if (_showLikeAnimation)
+                      ScaleTransition(
+                        scale: _likeScale,
+                        child: Image.asset(
+                          'assets/good.png',
+                          width: bgWidth * (104.0 / figmaWidth) * 0.7,
+                          height: bgWidth * (104.0 / figmaWidth) * 0.7,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               // 其他元件也請用同樣方式計算位置
