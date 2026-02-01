@@ -510,7 +510,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       });
 
       // 收起鍵盤
-      FocusScope.of(context).unfocus();
+      // FocusScope.of(context).unfocus();
     } catch (e) {
       print('發送訊息或通知失敗: $e');
       // if (context.mounted) {
