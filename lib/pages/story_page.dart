@@ -83,70 +83,95 @@ class _StoryPageState extends State<StoryPage> {
   }
 
 
-   //** 分頁抓取 Stories + 緩存使用者資料
+   //** 分頁抓取 Stories + 緩存使用者資料（並行優化版）
   Future<void> _loadStories({bool loadMore = false}) async {
     if (isLoadingMore) return; //** 避免重複加載
     setState(() => isLoadingMore = true);
 
-    List<Map<String, dynamic>> tempStories = [];
+    try {
+      List<Map<String, dynamic>> tempStories = [];
 
-    //** Step1：預先抓取緩存使用者資料
-    for (var uid in matchedUserIds) {
-      if (!userInfoCache.containsKey(uid)) {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-        final data = userDoc.data() as Map<String, dynamic>?; //**
-        userInfoCache[uid] = data ?? {}; //** 避免 null
-      }
-    }
-
-    //** Step2：抓 stories 分頁
-    for (var uid in matchedUserIds) {
-      Query query = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('stories')
-          .orderBy('timestamp', descending: true)
-          .limit(pageSize);
-
-      if (loadMore && lastStoryDoc != null) {
-        query = query.startAfterDocument(lastStoryDoc!);
-      }
-
-      final storySnapshot = await query.get();
-      if (storySnapshot.docs.isNotEmpty) {
-        lastStoryDoc = storySnapshot.docs.last; //** 記錄最後一筆
-      }
-
-      for (var doc in storySnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>?; //**
-        if (data != null) { //** 避免 null
-          data['storyId'] = doc.id;
-          data['userId'] = uid;
-          tempStories.add(data);
+      //** Step1：並行預加載缺失的使用者資料
+      final missingUserIds = matchedUserIds
+          .where((uid) => !userInfoCache.containsKey(uid))
+          .toList();
+      if (missingUserIds.isNotEmpty) {
+        final userFutures = missingUserIds.map((uid) =>
+            FirebaseFirestore.instance.collection('users').doc(uid).get());
+        final userDocs = await Future.wait(userFutures); //** 並行查詢
+        for (var i = 0; i < missingUserIds.length; i++) {
+          final data = userDocs[i].data() as Map<String, dynamic>?;
+          userInfoCache[missingUserIds[i]] = data ?? {};
         }
       }
+
+      //** Step2：並行抓取所有使用者的 stories
+      final storyFutures = matchedUserIds.map((uid) =>
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('stories')
+              .orderBy('timestamp', descending: true)
+              .limit(pageSize * 3) //** 多抓一些用於分頁
+              .get()
+              .then((snap) => {'userId': uid, 'docs': snap.docs}));
+
+      final storyResults = await Future.wait(storyFutures); //** 並行查詢
+
+      //** Step3：合併所有結果
+      for (var result in storyResults) {
+        final userId = result['userId'] as String;
+        final docs = result['docs'] as List<DocumentSnapshot>;
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data != null) {
+            data['storyId'] = doc.id;
+            data['userId'] = userId;
+            tempStories.add(data);
+          }
+        }
+      }
+
+      // 過濾被隱藏的 stories
+      tempStories = tempStories.where((s) {
+        final sid = s['storyId'] as String?;
+        if (sid != null && _hiddenStories.contains(sid)) return false;
+        return true;
+      }).toList();
+
+      //** Step4：全局排序（而非每個使用者個別分頁）
+      tempStories.sort((a, b) {
+        final tsA = (a['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        final tsB = (b['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        return tsB.compareTo(tsA);
+      });
+
+      //** Step5：應用客戶端分頁（只取前 pageSize 筆）
+      if (!loadMore) {
+        tempStories = tempStories.take(pageSize).toList();
+        lastStoryDoc = null;
+      } else {
+        final skipCount = allStories.length;
+        tempStories = tempStories
+            .skip(skipCount)
+            .take(pageSize)
+            .toList();
+      }
+
+      setState(() {
+        if (loadMore) {
+          allStories.addAll(tempStories);
+        } else {
+          allStories = tempStories;
+        }
+        hasStories = allStories.isNotEmpty;
+        isLoadingMore = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => isLoadingMore = false);
+      }
     }
-
-    // 過濾被隱藏的 stories（封鎖使用者已從 `matches` 移除，因此不需再次過濾）
-    tempStories = tempStories.where((s) {
-      final sid = s['storyId'] as String?;
-      if (sid != null && _hiddenStories.contains(sid)) return false;
-      return true;
-    }).toList();
-
-    //** Step3：合併並排序
-    final mergedStories = [...allStories, ...tempStories];
-    mergedStories.sort((a, b) {
-      final tsA = (a['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
-      final tsB = (b['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
-      return tsB.compareTo(tsA);
-    });
-
-    setState(() {
-      allStories = mergedStories;
-      hasStories = mergedStories.isNotEmpty;
-      isLoadingMore = false;
-    });
   }
 
 
